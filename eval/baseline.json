@@ -1,0 +1,48 @@
+{
+  "retriever": "hybrid",
+  "main": {
+    "questions": 64,
+    "answerable": 37,
+    "hit_at_1": 37,
+    "hit_at_k": 37,
+    "answered": 36,
+    "cites_expected": 36,
+    "quote_checked": 36,
+    "quotes_expected": 36,
+    "out_of_scope": 17,
+    "out_of_scope_refused": 16,
+    "restricted": 10,
+    "restricted_refused": 10,
+    "restricted_text_found": 0
+  },
+  "heldout": {
+    "questions": 31,
+    "answerable": 21,
+    "hit_at_1": 20,
+    "hit_at_k": 21,
+    "answered": 14,
+    "cites_expected": 14,
+    "quote_checked": 14,
+    "quotes_expected": 14,
+    "out_of_scope": 6,
+    "out_of_scope_refused": 2,
+    "restricted": 4,
+    "restricted_refused": 4,
+    "restricted_text_found": 0
+  },
+  "heldout_v2": {
+    "questions": 30,
+    "answerable": 16,
+    "hit_at_1": 15,
+    "hit_at_k": 16,
+    "answered": 10,
+    "cites_expected": 9,
+    "quote_checked": 10,
+    "quotes_expected": 8,
+    "out_of_scope": 8,
+    "out_of_scope_refused": 7,
+    "restricted": 6,
+    "restricted_refused": 5,
+    "restricted_text_found": 0
+  }
+}

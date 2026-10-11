@@ -1,0 +1,64 @@
+{"id": "a01", "type": "answerable", "role": "staff", "question": "How many days of annual leave do full-time employees get?", "expected_docs": ["general/leave-policy"], "key_phrases": ["25 days of paid annual leave"]}
+{"id": "a02", "type": "answerable", "role": "staff", "question": "Can I carry unused holiday over to next year?", "expected_docs": ["general/leave-policy"], "key_phrases": ["carry over up to 5"]}
+{"id": "a03", "type": "answerable", "role": "staff", "question": "How long is parental leave for partners?", "expected_docs": ["general/leave-policy"], "key_phrases": ["Partners receive 4 weeks"]}
+{"id": "a04", "type": "answerable", "role": "staff", "question": "What is the hotel limit per night in London?", "expected_docs": ["general/expense-policy"], "key_phrases": ["per night in London"]}
+{"id": "a05", "type": "answerable", "role": "staff", "question": "Who approves an expense claim over 500 pounds?", "expected_docs": ["general/expense-policy"], "key_phrases": ["Claims above £500 also need approval from the finance team"]}
+{"id": "a06", "type": "answerable", "role": "staff", "question": "When are approved expenses paid back?", "expected_docs": ["general/expense-policy"], "key_phrases": ["paid back with the next monthly payroll"]}
+{"id": "a07", "type": "answerable", "role": "staff", "question": "How long must a password be?", "expected_docs": ["general/it-security-policy"], "key_phrases": ["at least 14 characters"]}
+{"id": "a08", "type": "answerable", "role": "staff", "question": "How do I report a lost laptop?", "expected_docs": ["general/it-security-policy"], "key_phrases": ["IT service desk", "reported within one hour"]}
+{"id": "a09", "type": "answerable", "role": "staff", "question": "Are text message codes accepted for MFA?", "expected_docs": ["general/it-security-policy"], "key_phrases": ["Codes sent by text message are not accepted"]}
+{"id": "a10", "type": "answerable", "role": "staff", "question": "What time should I arrive on my first day?", "expected_docs": ["general/onboarding-guide"], "key_phrases": ["Arrive at 9:30"]}
+{"id": "a11", "type": "answerable", "role": "staff", "question": "How long is the probation period?", "expected_docs": ["general/onboarding-guide"], "key_phrases": ["probation period is 6 months"]}
+{"id": "a12", "type": "answerable", "role": "staff", "question": "How much does the company contribute to my pension?", "expected_docs": ["general/onboarding-guide"], "key_phrases": ["contributes 5%"]}
+{"id": "a13", "type": "answerable", "role": "staff", "question": "Where can I print documents?", "expected_docs": ["general/office-faq"], "key_phrases": ["Printers are on every floor"]}
+{"id": "a14", "type": "answerable", "role": "staff", "question": "What does error code E31 mean on the pallet tracker?", "expected_docs": ["general/pt-200-product-manual"], "key_phrases": ["E31: no Wi-Fi connection"]}
+{"id": "a15", "type": "answerable", "role": "staff", "question": "How long does the PT-200 battery last on a full charge?", "expected_docs": ["general/pt-200-product-manual"], "key_phrases": ["A full charge lasts about 10 hours"]}
+{"id": "a16", "type": "answerable", "role": "staff", "question": "How long is the warranty on the PT-200?", "expected_docs": ["general/pt-200-product-manual"], "key_phrases": ["2-year warranty"]}
+{"id": "a17", "type": "answerable", "role": "hr", "question": "What is the salary range for Band C?", "expected_docs": ["hr/salary-bands"], "key_phrases": ["£38,000 to £52,000"]}
+{"id": "a18", "type": "answerable", "role": "hr", "question": "When is the annual pay review?", "expected_docs": ["hr/salary-bands"], "key_phrases": ["Pay is reviewed every April"]}
+{"id": "a19", "type": "answerable", "role": "finance", "question": "On which days are supplier payment runs?", "expected_docs": ["finance/supplier-payments"], "key_phrases": ["every Tuesday and Thursday"]}
+{"id": "a20", "type": "answerable", "role": "finance", "question": "Who must approve a supplier payment above 25,000 pounds?", "expected_docs": ["finance/supplier-payments"], "key_phrases": ["finance director and one other director"]}
+{"id": "a21", "type": "answerable", "role": "finance", "question": "How many working days do we have to close the quarter?", "expected_docs": ["finance/quarter-end-checklist"], "key_phrases": ["within 8 working days"]}
+{"id": "a22", "type": "answerable", "role": "staff", "question": "Are expense claims approved automatically?", "expected_docs": ["general/expense-policy"], "key_phrases": ["No claim is approved automatically"]}
+{"id": "a23", "type": "answerable", "role": "admin", "question": "Who signs off the management accounts?", "expected_docs": ["finance/quarter-end-checklist"], "key_phrases": ["signs off the management accounts"]}
+{"id": "a24", "type": "answerable", "role": "staff", "question": "How many weeks of parental leave do birth parents get?", "expected_docs": ["general/leave-policy"], "key_phrases": ["Birth parents receive 26 weeks"]}
+{"id": "a25", "type": "answerable", "role": "staff", "question": "Do I need a doctor's note when I am off sick?", "expected_docs": ["general/leave-policy"], "key_phrases": ["a doctor's note is required"]}
+{"id": "a26", "type": "answerable", "role": "staff", "question": "Can I travel first class by train?", "expected_docs": ["general/expense-policy"], "key_phrases": ["Rail travel: standard class", "First class only with director approval"]}
+{"id": "a27", "type": "answerable", "role": "staff", "question": "How long do I have to submit an expense claim?", "expected_docs": ["general/expense-policy"], "key_phrases": ["within 30 days of the expense"]}
+{"id": "a28", "type": "answerable", "role": "staff", "question": "Do I need the VPN on public Wi-Fi?", "expected_docs": ["general/it-security-policy"], "key_phrases": ["Use the company VPN on public Wi-Fi"]}
+{"id": "a29", "type": "answerable", "role": "staff", "question": "What training do new starters have to complete?", "expected_docs": ["general/onboarding-guide"], "key_phrases": ["mandatory training"]}
+{"id": "a30", "type": "answerable", "role": "staff", "question": "What should I do if the scanner shows E47?", "expected_docs": ["general/pt-200-product-manual"], "key_phrases": ["E47: battery fault", "Stop using the device"]}
+{"id": "a31", "type": "answerable", "role": "staff", "question": "What does the amber battery light mean?", "expected_docs": ["general/pt-200-product-manual"], "key_phrases": ["amber while it is charging"]}
+{"id": "a32", "type": "answerable", "role": "staff", "question": "When is the office open?", "expected_docs": ["general/office-faq"], "key_phrases": ["open from 7:00 to 20:00"]}
+{"id": "a33", "type": "answerable", "role": "staff", "question": "How long is lost property kept?", "expected_docs": ["general/office-faq"], "key_phrases": ["kept at reception for 30 days"]}
+{"id": "a34", "type": "answerable", "role": "hr", "question": "Who approves a move to a higher salary band?", "expected_docs": ["hr/salary-bands"], "key_phrases": ["promotion approved by the HR director"]}
+{"id": "a35", "type": "answerable", "role": "finance", "question": "How are new supplier bank details checked?", "expected_docs": ["finance/supplier-payments"], "key_phrases": ["call-back to a known phone number"]}
+{"id": "a36", "type": "answerable", "role": "finance", "question": "When must bank accounts be reconciled at quarter end?", "expected_docs": ["finance/quarter-end-checklist"], "key_phrases": ["reconciled by working day 3"]}
+{"id": "a37", "type": "answerable", "role": "admin", "question": "What is the pay review budget for 2027?", "expected_docs": ["hr/salary-bands"], "key_phrases": ["3.5% of the total salary bill"]}
+{"id": "o01", "type": "out_of_scope", "role": "staff", "question": "What is the capital of France?"}
+{"id": "o02", "type": "out_of_scope", "role": "staff", "question": "Can I bring my dog to the office?"}
+{"id": "o03", "type": "out_of_scope", "role": "staff", "question": "What is the parking policy?"}
+{"id": "o04", "type": "out_of_scope", "role": "staff", "question": "Who won the football world cup in 2022?"}
+{"id": "o05", "type": "out_of_scope", "role": "staff", "question": "What is the company's share price today?"}
+{"id": "o06", "type": "out_of_scope", "role": "staff", "question": "How do I reset the coffee machine?"}
+{"id": "o07", "type": "out_of_scope", "role": "staff", "question": "What is the bonus scheme for sales staff?"}
+{"id": "o08", "type": "out_of_scope", "role": "staff", "question": "Is there a gym discount for employees?"}
+{"id": "o09", "type": "out_of_scope", "role": "staff", "question": "What is the dress code?"}
+{"id": "o10", "type": "out_of_scope", "role": "staff", "question": "What is the company's policy on working remotely from abroad?"}
+{"id": "o11", "type": "out_of_scope", "role": "staff", "question": "How do I claim mileage for my own car?"}
+{"id": "o12", "type": "out_of_scope", "role": "staff", "question": "When is the Christmas party?"}
+{"id": "o13", "type": "out_of_scope", "role": "hr", "question": "What is the maternity pay rate in France?"}
+{"id": "o14", "type": "out_of_scope", "role": "staff", "question": "How much sick pay will I get?"}
+{"id": "o15", "type": "out_of_scope", "role": "staff", "question": "Can I book a first class flight?"}
+{"id": "o16", "type": "out_of_scope", "role": "staff", "question": "Can I work remotely from home?"}
+{"id": "o17", "type": "out_of_scope", "role": "staff", "question": "Can I fly business class on flights longer than 6 hours?"}
+{"id": "r01", "type": "restricted", "role": "staff", "question": "What is the salary range for Band C?", "restricted_doc": "hr/salary-bands"}
+{"id": "r02", "type": "restricted", "role": "staff", "question": "When is the annual pay review and what is the budget?", "restricted_doc": "hr/salary-bands"}
+{"id": "r03", "type": "restricted", "role": "finance", "question": "What are the salary bands?", "restricted_doc": "hr/salary-bands"}
+{"id": "r04", "type": "restricted", "role": "staff", "question": "Who approves supplier payments above 25,000 pounds?", "restricted_doc": "finance/supplier-payments"}
+{"id": "r05", "type": "restricted", "role": "hr", "question": "On which days are supplier payment runs?", "restricted_doc": "finance/supplier-payments"}
+{"id": "r06", "type": "restricted", "role": "staff", "question": "How many working days do we have to close the quarter?", "restricted_doc": "finance/quarter-end-checklist"}
+{"id": "r07", "type": "restricted", "role": "staff", "question": "What are the salary bands?", "restricted_doc": "hr/salary-bands"}
+{"id": "r08", "type": "restricted", "role": "staff", "question": "How much is the 2027 pay review budget?", "restricted_doc": "hr/salary-bands"}
+{"id": "r09", "type": "restricted", "role": "hr", "question": "Who signs off the management accounts?", "restricted_doc": "finance/quarter-end-checklist"}
+{"id": "r10", "type": "restricted", "role": "staff", "question": "Which payments are allowed as urgent same-day payments?", "restricted_doc": "finance/supplier-payments"}

@@ -1,0 +1,9 @@
+# Everything in requirements.txt, plus what the tests and the checks need.
+-r requirements.txt
+pytest>=8,<10
+fpdf2>=2.7,<3          # samples/make_pdfs.py and the PDF tests
+ruff>=0.6,<1
+mypy>=1.10,<2
+# The eight browser tests and docs/make_screenshots.py drive an installed Chrome or Edge
+# (no browser download). Without Playwright or a browser, those eight tests are skipped.
+playwright>=1.45,<2

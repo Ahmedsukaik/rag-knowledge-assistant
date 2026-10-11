@@ -1,0 +1,30 @@
+# A starter list of workplace synonyms. Words on one line are treated as the same word,
+# in the documents and in the questions. One word per entry (no phrases); the first word
+# of a line is the one used internally.
+#
+# Edit this list for your own documents, or point KB_SYNONYMS at your own file
+# (KB_SYNONYMS=off turns synonyms off). After editing, nothing needs to be re-ingested:
+# passages are re-indexed when the server starts.
+#
+# Keep it small. A wrong merge makes unrelated questions match.
+leave, holiday, holidays, vacation, vacations, pto
+minimum, least
+length, long
+expense, expenses, cost, costs, spend, spending
+day, daily, diem
+lost, stolen, theft, steal, missing
+laptop, computer, notebook, pc
+phone, mobile, smartphone, cellphone
+password, passcode, passphrase
+manager, boss, supervisor
+reimbursement, reimburse, reimbursed, refund, repay, repaid
+sick, ill, illness, unwell
+travel, trip, trips, travelling, traveling
+flight, flights, fly, flying, airfare
+rail, train, trains
+meal, meals, food, lunch, dinner
+hotel, hotels, accommodation, lodging
+print, printer, printers, printing
+warranty, guarantee
+probation, trial
+pension, retirement

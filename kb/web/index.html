@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Ask the documents</title>
+<style>
+  :root {
+    --ink: #0f1f33; --ink-2: #33445a; --grey: #5b6b80; --line: #dfe6ee; --soft: #f4f8fb;
+    --teal: #0b6b62; --accent: #12a394; --mint: #e3f4f1;
+    --nf-bg: #f6f7f9; --nf-line: #c3ccd8; --nf-ink: #4a5568;
+    --warn-bg: #fff8e6; --warn-line: #f0cf7a; --warn-ink: #7a5300;
+    --err-bg: #fff4ec; --err-line: #f6b98a; --err-ink: #8a3b00;
+    --deny-bg: #fdf1f1; --deny-line: #f2a7a7; --deny-ink: #9b1c1c;
+    --radius: 14px;
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { color: var(--ink); background: linear-gradient(180deg, #ffffff 0%, var(--soft) 100%); font-size: 16px; line-height: 1.55; }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 3px solid rgba(18, 163, 148, .45); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- header */
+  .top {
+    height: 68px; display: flex; align-items: center; gap: 16px; padding: 0 28px;
+    border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .92); position: sticky; top: 0; z-index: 5;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mark { width: 34px; height: 34px; border-radius: 10px; background: var(--ink); display: grid; place-items: center; flex: none; }
+  .brand h1 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.2px; white-space: nowrap; }
+  .brand p { margin: 0; font-size: 13px; color: var(--grey); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .spacer { flex: 1; }
+  .who { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--ink-2); white-space: nowrap; }
+  .who b { color: var(--ink); font-weight: 600; }
+  .tag { display: inline-block; padding: 2px 10px; border-radius: 999px; background: var(--mint); color: var(--teal); font-size: 12.5px; font-weight: 600; }
+  .ghost { border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 7px 12px; font-size: 14px; color: var(--ink-2); }
+  .ghost:hover { border-color: #b9c6d4; }
+  .docs-toggle { display: none; }
+  .short, .phone-only { display: none; }
+
+  /* ---------- sign-in */
+  .signin { min-height: calc(100% - 68px); display: grid; place-items: center; padding: 32px 20px; }
+  .card { width: 100%; max-width: 460px; background: #fff; border: 1px solid var(--line); border-radius: 18px; padding: 32px; box-shadow: 0 12px 40px rgba(15, 31, 51, .07); }
+  .card h2 { margin: 0 0 6px; font-size: 24px; letter-spacing: -.3px; }
+  .card p { margin: 0 0 20px; color: var(--grey); font-size: 15px; }
+  .card label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 8px; }
+  .card input { width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+  .primary { border: 0; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 600; padding: 12px 18px; }
+  .primary:hover { background: #1b3150; }
+  .primary:disabled { opacity: .5; cursor: default; }
+  .card .primary { width: 100%; margin-top: 14px; }
+  .card .note { margin: 14px 0 0; font-size: 13px; }
+  .card .fail { margin: 14px 0 0; color: var(--deny-ink); font-size: 14px; font-weight: 600; }
+
+  /* ---------- layout */
+  .app { display: grid; grid-template-columns: 290px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: calc(100% - 68px); overflow: hidden; }
+  .app.with-panel { grid-template-columns: 290px minmax(0, 1fr) 440px; }
+  .side { border-right: 1px solid var(--line); padding: 24px 20px; overflow: auto; background: rgba(255, 255, 255, .6); }
+  .side h3, .panel h3 { margin: 0 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--teal); }
+  .side .sub { margin: 0 0 16px; font-size: 13px; color: var(--grey); }
+  .doc { display: flex; gap: 10px; padding: 9px 8px; border-radius: 10px; }
+  .doc:hover { background: var(--soft); }
+  .kind { flex: none; width: 38px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 10.5px; font-weight: 700;
+          letter-spacing: .04em; background: var(--soft); color: var(--ink-2); border: 1px solid var(--line); margin-top: 1px; }
+  .kind.pdf { background: #fdf0ee; color: #9b2c1c; border-color: #f6d4cd; }
+  .doc .t { font-size: 14px; font-weight: 600; line-height: 1.35; }
+  .doc .m { font-size: 12.5px; color: var(--grey); }
+  .collection { margin: 14px 0 6px; font-size: 12.5px; color: var(--grey); font-weight: 600; }
+
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .thread { flex: 1; overflow: auto; padding: 28px 32px 12px; }
+  .inner { max-width: 780px; margin: 0 auto; }
+  .empty { margin: 8vh auto 0; max-width: 520px; text-align: center; color: var(--grey); }
+  .empty h2 { color: var(--ink); font-size: 26px; letter-spacing: -.4px; margin: 0 0 8px; }
+
+  .q { display: flex; justify-content: flex-end; margin: 6px 0 12px; }
+  .q span { background: var(--ink); color: #fff; padding: 11px 16px; border-radius: 16px 16px 4px 16px; max-width: 85%; overflow-wrap: anywhere; }
+
+  .answer { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius);
+            padding: 18px 20px 16px; margin: 0 0 26px; box-shadow: 0 6px 22px rgba(15, 31, 51, .05); }
+  .answer header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--mint); color: var(--teal); }
+  .mode { font-size: 12.5px; color: var(--grey); }
+  .mode b { color: var(--ink-2); font-weight: 600; }
+  .body p { margin: 0 0 8px; overflow-wrap: anywhere; }
+  .chip { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 6px; margin: 0 2px; vertical-align: 1px;
+          border: 1px solid #9fd8cf; border-radius: 7px; background: var(--mint); color: var(--teal); font-size: 12.5px; font-weight: 700; line-height: 1; }
+  .chip:hover, .chip.on { background: var(--teal); border-color: var(--teal); color: #fff; }
+  .sources { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line); display: flex; flex-wrap: wrap; gap: 8px; }
+  .src { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--soft); border-radius: 10px;
+         padding: 6px 10px; font-size: 13.5px; color: var(--ink-2); text-align: left; max-width: 100%; }
+  .src:hover, .src.on { border-color: var(--accent); background: #fff; }
+  .src .n { font-weight: 700; color: var(--teal); }
+  .src.also { opacity: .75; }
+  .warn { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--warn-bg); border: 1px solid var(--warn-line); color: var(--warn-ink); font-size: 14px; }
+
+  .answer.not_found { background: var(--nf-bg); border: 1.5px dashed var(--nf-line); box-shadow: none; }
+  .answer.not_found .status { background: #e8ecf1; color: var(--nf-ink); }
+  .answer.flagged { border-left-color: #e0a800; }
+  .answer.flagged .status { background: var(--warn-bg); color: var(--warn-ink); }
+  .answer.error { background: var(--err-bg); border-color: var(--err-line); border-left-color: #ea7a2a; }
+  .answer.error .status { background: #ffe4cf; color: var(--err-ink); }
+  .answer.denied { background: var(--deny-bg); border-color: var(--deny-line); border-left-color: #d63b3b; box-shadow: none; }
+  .answer.denied .status { background: #fbd5d5; color: var(--deny-ink); }
+  .answer.pending { border-left-color: var(--line); color: var(--grey); }
+  .headline { font-weight: 700; font-size: 17px; margin: 0 0 4px; }
+  .muted { color: var(--grey); font-size: 14.5px; margin: 0; }
+
+  .composer { padding: 14px 32px 22px; background: linear-gradient(180deg, rgba(244, 248, 251, 0), var(--soft) 30%); }
+  .composer form { max-width: 780px; margin: 0 auto; display: flex; gap: 10px; align-items: flex-end;
+                   background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 8px 8px 8px 16px; box-shadow: 0 8px 26px rgba(15, 31, 51, .06); }
+  .composer textarea { flex: 1; border: 0; resize: none; outline: none; padding: 8px 0; max-height: 160px; background: transparent; }
+  .composer .hint { max-width: 780px; margin: 8px auto 0; font-size: 12.5px; color: var(--grey); text-align: center; }
+
+  /* ---------- source panel */
+  .panel { border-left: 1px solid var(--line); background: #fff; overflow: auto; padding: 22px 24px 28px; }
+  .panel .bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .panel h2 { margin: 6px 0 4px; font-size: 20px; letter-spacing: -.3px; line-height: 1.3; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 16px; }
+  .meta span { font-size: 12.5px; padding: 3px 9px; border-radius: 8px; background: var(--soft); border: 1px solid var(--line); color: var(--ink-2); }
+  .passage { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 16px; font-size: 15px; line-height: 1.65; }
+  mark { background: #c9efe7; color: var(--ink); padding: 1px 2px; border-radius: 4px; box-shadow: inset 0 -2px 0 var(--accent); }
+  .pid { margin-top: 12px; font-size: 13px; }
+  .pid code { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12.5px; color: var(--ink-2); }
+  .close { border: 0; background: var(--soft); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; line-height: 1; color: var(--ink-2); }
+
+  @media (max-width: 1100px) {
+    .app, .app.with-panel { grid-template-columns: minmax(0, 1fr); }
+    .side { display: none; }
+    .app.show-docs .side { display: block; position: fixed; inset: 68px 0 0 0; z-index: 6; background: #fff; }
+    .docs-toggle { display: inline-block; }
+    .panel { position: fixed; inset: 68px 0 0 0; z-index: 7; border-left: 0; }
+  }
+  @media (max-width: 640px) {
+    .top { padding: 0 14px; gap: 10px; }
+    .mark, .brand p, .who .ident, .composer .hint { display: none; }
+    .brand h1 { font-size: 16px; }
+    .phone-only { display: block; }
+    .thread { padding: 18px 14px 8px; }
+    .composer { padding: 10px 12px 14px; }
+    .answer { padding: 16px 16px 14px; }
+    .card { padding: 24px; }
+  }
+  @media (max-width: 400px) {
+    .top { padding: 0 10px; gap: 8px; }
+    .brand h1 { font-size: 15px; }
+    .top .ghost { padding: 6px 9px; font-size: 13px; }
+    .short { display: inline; }
+    .long { display: none; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 18 18"><path d="M4 3.5h7l3 3v8H4z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/><path d="M6.5 9h5M6.5 11.8h3.5" stroke="#12a394" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </div>
+    <div>
+      <h1>Ask the documents</h1>
+      <p>Answers only from your company's documents, with the source of every answer</p>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="who" id="who" hidden>
+    <button class="ghost docs-toggle" id="docs-toggle" type="button"><span class="long">Documents</span><span class="short">Docs</span></button>
+    <span class="ident"><b id="who-name"></b> <span class="role-text">&middot; can read</span></span>
+    <span class="ident" id="who-collections"></span>
+    <button class="ghost" id="signout" type="button">Sign out</button>
+  </div>
+</header>
+
+<section class="signin" id="signin">
+  <form class="card" id="signin-form">
+    <h2>Sign in</h2>
+    <p>Paste the access token your administrator gave you. It decides which documents you can read.</p>
+    <label for="token">Access token</label>
+    <input id="token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your token">
+    <button class="primary" type="submit">Connect</button>
+    <p class="fail" id="signin-fail" hidden></p>
+    <p class="note muted">The token is kept in this browser tab only, and is forgotten when you close it.</p>
+  </form>
+</section>
+
+<div class="app" id="app" hidden>
+  <aside class="side" id="side">
+    <h3>Your documents</h3>
+    <p class="sub" id="docs-sub"></p>
+    <p class="sub phone-only" id="docs-who"></p>
+    <div id="docs"></div>
+  </aside>
+
+  <main class="main">
+    <div class="thread" id="thread" aria-live="polite">
+      <div class="inner" id="inner">
+        <div class="empty" id="empty">
+          <h2>Ask a question</h2>
+          <p>Answers come only from the documents your role may read. Every answer shows where it comes from, and if the documents do not cover your question, you will be told.</p>
+        </div>
+      </div>
+    </div>
+    <div class="composer">
+      <form id="ask-form">
+        <textarea id="question" rows="1" maxlength="1000" placeholder="Ask about a policy or procedure" aria-label="Your question"></textarea>
+        <button class="primary" id="ask" type="submit">Ask</button>
+      </form>
+      <p class="hint">Press Enter to ask, Shift+Enter for a new line. Each question is answered on its own.</p>
+    </div>
+  </main>
+
+  <aside class="panel" id="panel" hidden aria-label="Source"></aside>
+</div>
+
+<script>
+"use strict";
+const KEY = "kb-token";
+const state = { token: sessionStorage.getItem(KEY) || "", me: null, results: [], busy: false,
+                session: 0, inflight: null };
+const $ = (id) => document.getElementById(id);
+const EMPTY = $("empty");
+
+/* Forget every earlier answer: on sign-out, on a new token and when a token stops working,
+   so the next person never sees the previous person's answers or sources. A request still on
+   its way is cancelled, and any reply that arrives after this point is dropped (state.session). */
+function resetConversation() {
+  state.session += 1;
+  if (state.inflight) state.inflight.abort();
+  state.inflight = null;
+  state.busy = false;
+  $("ask").disabled = false;
+  state.results = [];
+  closeSource();
+  $("panel").replaceChildren();  // the hidden panel still held the last passage's text
+  EMPTY.hidden = false;
+  $("inner").replaceChildren(EMPTY);
+  $("docs").replaceChildren();
+  $("docs-sub").textContent = "";
+}
+
+function el(tag, props, ...children) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "class") node.className = v;
+    else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const child of children.flat()) {
+    if (child === null || child === undefined || child === false) continue;
+    node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return node;
+}
+
+async function api(method, path, body, signal) {
+  try {
+    const response = await fetch(path, {
+      method, cache: "no-store", signal,
+      headers: { "Authorization": "Bearer " + state.token, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    let data = null;
+    try { data = await response.json(); } catch (e) { data = null; }
+    return { status: response.status, data };
+  } catch (e) {
+    return { status: 0, data: null };
+  }
+}
+
+/* ---------------------------------------------------------------- sign in */
+async function connect(token) {
+  resetConversation();
+  const session = state.session;
+  state.token = token.trim();
+  const me = await api("GET", "/me");
+  if (session !== state.session) return;  // signed out or switched token meanwhile
+  if (me.status !== 200) {
+    sessionStorage.removeItem(KEY);
+    state.token = "";
+    showSignin(me.status === 0 ? "Could not reach the server." : "Access denied: this token is not valid.");
+    return;
+  }
+  sessionStorage.setItem(KEY, state.token);
+  state.me = me.data;
+  $("who-name").textContent = me.data.name;
+  $("docs-who").textContent = "Signed in as " + me.data.name + ", role " + me.data.role + ".";
+  const tags = $("who-collections");
+  tags.replaceChildren(...me.data.collections.map((c) => el("span", { class: "tag" }, c)));
+  if (!me.data.collections.length) tags.replaceChildren(el("span", { class: "tag" }, "no collections"));
+  $("signin").hidden = true;
+  $("app").hidden = false;
+  $("who").hidden = false;
+  loadDocuments();
+  $("question").focus();
+}
+
+function showSignin(message) {
+  resetConversation();
+  $("app").hidden = true;
+  $("who").hidden = true;
+  $("signin").hidden = false;
+  $("signin-fail").hidden = !message;
+  $("signin-fail").textContent = message || "";
+  $("token").value = "";
+  $("token").focus();
+}
+
+async function loadDocuments() {
+  const session = state.session;
+  const res = await api("GET", "/documents");
+  if (session !== state.session || res.status !== 200) return;  // a reply for an earlier sign-in is dropped
+  const docs = res.data.documents;
+  $("docs-sub").textContent = docs.length + (docs.length === 1 ? " document" : " documents") + " your role may read";
+  const groups = {};
+  for (const d of docs) (groups[d.collection] = groups[d.collection] || []).push(d);
+  const items = [];
+  for (const [collection, list] of Object.entries(groups)) {
+    items.push(el("div", { class: "collection" }, collection));
+    for (const d of list) {
+      const kind = d.kind === "markdown" ? "MD" : d.kind === "pdf" ? "PDF" : "TXT";
+      const pages = d.pages ? d.pages + " pages, " : "";
+      items.push(el("div", { class: "doc" },
+        el("span", { class: "kind" + (d.kind === "pdf" ? " pdf" : "") }, kind),
+        el("div", {}, el("div", { class: "t" }, d.title), el("div", { class: "m" }, pages + d.chunk_count + " passages"))));
+    }
+  }
+  $("docs").replaceChildren(...items);
+}
+
+/* ---------------------------------------------------------------- asking */
+const MODES = {
+  extractive: ["Extractive", "quoted from the documents, nothing AI-written"],
+  claude: ["Claude", "written by AI, every citation checked against the document"],
+};
+const STATUS = { answered: "Answered", not_found: "Not in the documents", flagged: "Withheld: failed the source check",
+                 error: "Answer service unavailable", denied: "Access denied", rejected: "Question not accepted" };
+
+function header(status, mode) {
+  const parts = [el("span", { class: "status" }, STATUS[status] || status)];
+  if (mode && MODES[mode]) parts.push(el("span", { class: "mode" }, el("b", {}, MODES[mode][0]), " · " + MODES[mode][1]));
+  return el("header", {}, parts);
+}
+
+/* The answer arrives as parts: {text, sources}. Text is always shown as text; a chip is made
+   only from a part's verified source numbers, never from "[2]" written inside a document. */
+function renderParts(parts, index, count) {
+  const body = el("div", { class: "body" });
+  let paragraph = el("p");
+  for (const part of parts) {
+    String(part.text || "").split("\n").forEach((piece, i) => {
+      if (i > 0 && paragraph.childNodes.length) { body.append(paragraph); paragraph = el("p"); }
+      if (piece) paragraph.append(piece);
+    });
+    for (const n of part.sources || []) {
+      if (!Number.isInteger(n) || n < 1 || n > count) continue;
+      paragraph.append(el("button", { class: "chip", type: "button", "data-n": String(n), "aria-label": "Show source " + n,
+                                      onclick: () => openSource(index, n) }, String(n)));
+    }
+  }
+  if (paragraph.childNodes.length) body.append(paragraph);
+  return body;
+}
+
+function renderAnswer(index) {
+  const r = state.results[index];
+  const card = el("article", { class: "answer " + r.status, "data-status": r.status });
+  card.append(header(r.status, r.status === "not_found" ? null : r.mode));
+  if (r.status === "not_found") {
+    card.append(el("p", { class: "headline" }, "Not in the documents you can read"),
+                el("p", { class: "muted" }, "No passage you may read matched this question well enough, so the assistant does not guess. Try asking more directly, or use the words your documents use."));
+    return card;
+  }
+  if (r.status === "denied") {
+    card.append(el("p", { class: "headline" }, "Access denied"),
+                el("p", { class: "muted" }, r.message),
+                el("p", {}, el("button", { class: "ghost", type: "button", onclick: () => showSignin("") }, "Enter a new token")));
+    return card;
+  }
+  if (r.status === "rejected") {
+    card.append(el("p", { class: "muted" }, r.message));
+    return card;
+  }
+  const passages = r.passages || [];
+  if (r.status === "error") card.append(el("p", { class: "headline" }, "No answer right now"),
+    el("p", { class: "muted" }, "The answer service is not available. The matching passages are listed below."));
+  if (r.status === "flagged") card.append(el("p", { class: "muted" }, "The written answer did not match its sources, so it was withheld. These sentences are quoted from the documents instead:"));
+  if (r.status !== "error") card.append(renderParts(r.parts || [], index, passages.length));
+  for (const w of (r.warnings || [])) card.append(el("div", { class: "warn" }, w));
+  if (passages.length) {
+    const cited = new Set((r.citations || []).map((c) => c.number));
+    const list = el("div", { class: "sources" });
+    passages.forEach((p, i) => {
+      const n = i + 1;
+      const label = p.title + (p.section ? " › " + p.section : "") + (p.page ? ", page " + p.page : "");
+      list.append(el("button", { class: "src" + (cited.has(n) ? "" : " also"), type: "button", "data-n": String(n),
+                                 title: cited.has(n) ? "Cited in the answer" : "Retrieved, not quoted",
+                                 onclick: () => openSource(index, n) }, el("span", { class: "n" }, String(n)), label));
+    });
+    card.append(list);
+  }
+  return card;
+}
+
+async function ask(question) {
+  question = question.trim();
+  if (!question || state.busy) return false;  // one question at a time (Enter pressed twice)
+  state.busy = true;
+  $("ask").disabled = true;
+  EMPTY.hidden = true;
+  const inner = $("inner");
+  inner.append(el("div", { class: "q" }, el("span", {}, question)));
+  const pending = el("article", { class: "answer pending" }, el("p", { class: "muted" }, "Searching your documents..."));
+  inner.append(pending);
+  pending.scrollIntoView({ block: "end" });
+  const session = state.session;
+  const controller = new AbortController();
+  state.inflight = controller;
+  const res = await api("POST", "/ask", { question }, controller.signal);
+  if (session !== state.session) return false;  // signed out meanwhile: never show this reply to the next person
+  state.inflight = null;
+  state.busy = false;
+  $("ask").disabled = false;
+  let result;
+  if (res.status === 200) result = res.data;
+  else if (res.status === 401 || res.status === 403) {
+    // The token no longer works: forget it and everything shown with it.
+    sessionStorage.removeItem(KEY);
+    state.token = "";
+    resetConversation();
+    EMPTY.hidden = true;
+    result = { status: "denied", message: "This token is not valid (any more). Ask your administrator for a new one." };
+  } else if (res.status === 400 || res.status === 413 || res.status === 422) {
+    result = { status: "rejected", message: (res.data && res.data.error) || "The question could not be read." };
+  } else {
+    result = { status: "error", answer: "", passages: [], mode: null };
+  }
+  state.results.push(result);
+  const card = renderAnswer(state.results.length - 1);
+  if (pending.isConnected) pending.replaceWith(card); else $("inner").append(card);
+  card.scrollIntoView({ block: "nearest" });
+  return true;
+}
+
+/* ---------------------------------------------------------------- source panel */
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
+function highlighted(text, quotes) {
+  const ranges = [];
+  for (const q of quotes) {
+    const words = q.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) continue;
+    const re = new RegExp(words.map(escapeRegExp).join("\\s+"), "g");
+    for (const m of text.matchAll(re)) ranges.push([m.index, m.index + m[0].length]);
+  }
+  ranges.sort((a, b) => a[0] - b[0]);
+  const nodes = [];
+  let at = 0;
+  for (const [start, end] of ranges) {
+    if (end <= at) continue;
+    const from = Math.max(start, at);
+    nodes.push(text.slice(at, from), el("mark", {}, text.slice(from, end)));
+    at = end;
+  }
+  nodes.push(text.slice(at));
+  return nodes;
+}
+
+function openSource(index, n) {
+  const r = state.results[index];
+  const p = (r.passages || [])[n - 1];
+  if (!p) return;
+  const quotes = (r.citations || []).filter((c) => c.number === n).map((c) => c.quote);
+  const meta = [el("span", {}, "Collection: " + p.collection)];
+  if (p.section) meta.unshift(el("span", {}, "Section: " + p.section));
+  if (p.page) meta.unshift(el("span", {}, "Page " + p.page));
+  const panel = $("panel");
+  panel.replaceChildren(
+    el("div", { class: "bar" }, el("h3", {}, "Source " + n),
+       el("button", { class: "close", type: "button", "aria-label": "Close source", onclick: closeSource }, "×")),
+    el("h2", {}, p.title),
+    el("div", { class: "meta" }, meta),
+    el("div", { class: "passage" }, highlighted(p.text, quotes)),
+    el("p", { class: "muted pid" }, quotes.length ? "Highlighted: the text quoted in the answer. " : "Retrieved for this question, not quoted. ",
+       "Passage ", el("code", {}, p.passage_id)));
+  panel.hidden = false;
+  $("app").classList.add("with-panel");
+  document.querySelectorAll(".chip.on, .src.on").forEach((b) => b.classList.remove("on"));
+  const card = document.querySelectorAll("article.answer:not(.pending)")[index];
+  if (card) {
+    card.querySelectorAll('[data-n="' + n + '"]').forEach((b) => b.classList.add("on"));
+    card.scrollIntoView({ block: "nearest" });  // the column is narrower now; keep the answer in view
+  }
+}
+
+function closeSource() {
+  $("panel").hidden = true;
+  $("app").classList.remove("with-panel");
+  document.querySelectorAll(".chip.on, .src.on").forEach((b) => b.classList.remove("on"));
+}
+
+/* ---------------------------------------------------------------- wiring */
+$("signin-form").addEventListener("submit", (e) => { e.preventDefault(); if ($("token").value.trim()) connect($("token").value); });
+$("signout").addEventListener("click", () => { sessionStorage.removeItem(KEY); state.token = ""; showSignin(""); });
+$("docs-toggle").addEventListener("click", () => $("app").classList.toggle("show-docs"));
+$("ask-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (state.busy || !$("question").value.trim()) return;  // keep the text while an answer is on its way
+  const q = $("question").value;
+  $("question").value = "";
+  ask(q);
+});
+$("question").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("ask-form").requestSubmit(); }
+});
+$("question").addEventListener("input", (e) => { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSource(); });
+if (state.token) connect(state.token); else showSignin("");
+</script>
+</body>
+</html>

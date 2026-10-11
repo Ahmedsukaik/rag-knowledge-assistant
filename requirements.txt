@@ -1,0 +1,13 @@
+# What the assistant needs to run (server, command line, demo).
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+mcp>=2.3,<3
+httpx>=0.27,<1
+anyio>=4,<5
+pydantic>=2.7,<3
+pypdf>=5,<7
+anthropic>=1.0,<2
+# Local embeddings for the hybrid retriever (KB_RETRIEVER=hybrid, the default). The model itself
+# (about 67 MB) is downloaded on first use, or with: python -m kb download-model
+fastembed>=0.9,<1
+numpy>=1.26
