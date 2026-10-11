@@ -3,6 +3,8 @@
 Document Q&A for a company: it answers only from the company's own documents, and shows
 where every answer comes from.
 
+**Video walkthrough (1 minute): https://youtu.be/xf6qv67UPb0**
+
 ![The chat page answering from the demo documents: an answer with its source, a question the documents do not answer, and a question in other words answered from a PDF with the source panel open on page 4](docs/img/chat.png)
 
 *The chat page on the demo documents, signed in as Maria (sales, staff role): an answer with
