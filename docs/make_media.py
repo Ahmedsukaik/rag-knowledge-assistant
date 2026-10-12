@@ -10,7 +10,7 @@ Writes docs/img/demo-tour.gif and docs/img/demo-*.png:
     demo-2-meaning.png step 2, found by meaning on page 4       1440x900
     demo-3-access.png  step 3, Maria refused, Hana answered     1440x900
     demo-4-held.png    step 4, the forced bad draft held        1440x900
-    demo-6-cost.png    step 6, cost and the eval table          1440x900
+    demo-6-cost.png    step 6, what you'd get and the cost      1440x900
     demo-2-phone.png   step 2 on a phone                        390x664
 """
 from __future__ import annotations
@@ -83,14 +83,14 @@ def tour(browser, url: str, tmp: str) -> Path | None:
     page.screenshot(path=str(OUT / "demo-4-held.png"))
     click("Next: where it still misses", 1300)
     click("Ask about sick days", 0)
-    page.get_by_role("button", name="Next: cost and test results").wait_for(timeout=60000)  # a near miss, or a refusal
+    page.get_by_role("button", name="Next: what you'd get").wait_for(timeout=60000)  # a near miss, or a refusal
     page.wait_for_timeout(3200)
-    page.get_by_role("button", name="Next: cost and test results").click()
-    until("What it costs", 3600)
+    page.get_by_role("button", name="Next: what you'd get").click()
+    until("What you'd get", 3600)
     page.screenshot(path=str(OUT / "demo-6-cost.png"))
     page.get_by_role("button", name="Try it yourself").click()
     page.wait_for_timeout(1200)
-    page.locator(".chip", has_text="A document that talks to the AI").click()
+    page.locator(".chip", has_text="A document with a hidden instruction").click()
     page.locator("#desk .planted-note").wait_for(timeout=60000)
     page.wait_for_timeout(3600)
     video = page.video.path() if page.video else None

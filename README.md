@@ -1,12 +1,18 @@
 # RAG Knowledge Assistant
 
-Document Q&A for a company: it answers only from the company's own documents, and shows
-where every answer comes from.
+A reference build: document Q and A for a company. It answers only from the company's own documents, shows the sentence and page behind every answer, and gives each person only the documents their role allows.
+
+**Live demo: https://rag-knowledge-assistant-demo.vercel.app** (six steps, about a minute)
 
 **Video walkthrough (1 minute): https://youtu.be/xf6qv67UPb0**
 
-**Try it in a browser:** a six step web demo on the same documents, with Claude Haiku 5.5 or quoted
-answers. See [Live demo](#live-demo).
+- Finds answers by meaning as well as keywords, with a small model on the server: no API cost for search.
+- Says "not in your documents" instead of guessing; HR text never reaches sales, however they ask.
+- Optional Claude mode: every sentence must cite a passage, checked in code, or it is withheld.
+- Measured: on unseen questions the documents do answer, it answered 14 of 21 and 10 of 16. Every miss is listed.
+- 333 tests, three question sets, a chat page, an HTTP API and an MCP server for AI tools.
+
+Fictional company and documents. Not a client system.
 
 ![The chat page answering from the demo documents: an answer with its source, a question the documents do not answer, and a question in other words answered from a PDF with the source panel open on page 4](docs/img/chat.png)
 
@@ -59,33 +65,35 @@ the top were added for the recording.*
 
 A web demo of the same search, access rules and source check, for a quick look in a browser:
 six short steps on the demo documents, then free use. You pick who you are: Maria (sales,
-staff role), Hana (HR) or Farid (finance). It is built for Vercel (`api/index.py`,
-`vercel.json`); the link goes here once it is deployed.
+staff role), Hana (HR) or Farid (finance). It runs on Vercel (`api/index.py`, `vercel.json`):
+https://rag-knowledge-assistant-demo.vercel.app
 
-![The web demo: an answer with its footnote and the quoted sentence marked on the Leave Policy; a question in other words found on page 4 of a PDF; the salary bands refused for Maria and answered for Hana; a bad AI draft held; the cost and the eval numbers; a document with a planted instruction.](docs/img/demo-tour.gif)
+![The web demo: an answer with its footnote and the quoted sentence marked on the Leave Policy; a question in other words found on page 4 of a PDF; the salary bands refused for Maria and answered for Hana; a bad AI draft held; what you'd get on your own documents; a document with a hidden instruction.](docs/img/demo-tour.gif)
 
 1. **A policy question.** Maria asks how much annual leave full-time staff get. The answer
    has footnote 1, which opens the Leave Policy with the quoted sentence marked.
 2. **The same question in other words.** "Is the pallet scanner still covered if it breaks
-   after a year?" finds the warranty section on page 4 of a PDF manual. The card shows that
-   keyword search alone found nothing.
+   after a year?" finds the warranty section on page 4 of a PDF manual. Keyword search alone
+   would have refused this question: too few of its words are in the manual.
 3. **Who can see what.** Maria asks for the Band C salary range and gets "Not in your
    documents". Hana from HR asks the same and gets the answer with its source.
 4. **A bad AI draft is held.** For this step the page forces a draft that says 30 days of
-   leave and that unused days never expire. The source check withholds it, and the matching
-   sentences are quoted instead. This step makes no AI call.
+   leave and that unused days never expire. The policy says 25; the source check withholds
+   the draft, and the real sentence is shown instead. This step makes no AI call.
 5. **Where it still misses.** "How many paid sick days am I entitled to per year?" gets the
-   annual leave sentence: a near miss, which the source makes easy to spot. On unseen test
-   questions the documents do answer, it answered 14 of 21 and 10 of 16.
-6. **Cost and test results.** The measured cost of the run, and the numbers from the three
-   question sets.
+   annual leave sentence: a near miss, which the footnote makes easy to spot.
+6. **What you'd get on your documents.** Answers that quote your own documents with the page;
+   "Not in your documents" instead of a guess; 0 leaks of HR or finance text in 606 test
+   questions. Then the held-out numbers (14 of 21 and 10 of 16), the measured cost, and how it
+   was tested.
 
 After that, free use: type any question, switch between Maria, Hana and Farid, choose answers
 written by the AI or quoted word for word, and try the suggestions: the document with the
 planted instruction, a question the documents do not answer, an error code the manual does
 not list, and the finance payment runs as Maria and as Farid.
 
-What the demo says about itself, and holds to:
+What the demo says about itself (the first line shows once its AI key is set; until then every
+answer is quoted, and the card says so):
 
 - Answers are written by Claude Haiku 5.5. Every sentence is checked against the passage it
   cites. When the demo's AI budget is used up, answers are quoted word for word, and the page
@@ -97,9 +105,9 @@ What the demo says about itself, and holds to:
 
 | The first screen | Step 2: found by meaning | Step 3: who can see what |
 |---|---|---|
-| ![The first screen: Answers you can check, with an answer and its footnote, and a refusal](docs/img/demo-0-intro.png) | ![The scanner question answered from page 4 of the PDF manual; keyword search alone found nothing](docs/img/demo-2-meaning.png) | ![Hana's answer from the salary bands, Maria's refusal below it](docs/img/demo-3-access.png) |
-| **Step 4: a bad draft held** | **Step 6: cost and test results** | **Step 2 on a phone** |
-| ![The forced draft struck through with the two reasons, and the quoted sentence shown instead](docs/img/demo-4-held.png) | ![The cost of the run and the eval table](docs/img/demo-6-cost.png) | ![Step 2 on a phone](docs/img/demo-2-phone.png) |
+| ![The first screen: Answers you can check, with an answer and its footnote, and a refusal](docs/img/demo-0-intro.png) | ![The scanner question answered from page 4 of the PDF manual; a plain word search would have refused it](docs/img/demo-2-meaning.png) | ![Hana's answer from the salary bands, Maria's refusal below it](docs/img/demo-3-access.png) |
+| **Step 4: a bad draft held** | **Step 6: what you'd get** | **Step 2 on a phone** |
+| ![The forced draft struck through with the two reasons, and the quoted sentence shown instead](docs/img/demo-4-held.png) | ![What you'd get: three takeaways, the held-out numbers and the cost of the run](docs/img/demo-6-cost.png) | ![Step 2 on a phone](docs/img/demo-2-phone.png) |
 
 How it works:
 
@@ -123,10 +131,11 @@ How it works:
   hard limit is the spend cap on the key. Over a limit, without a key, or when the API reports
   a spend limit, a rate limit, a key problem, a timeout or an outage, the answer is quoted
   word for word and the card says why.
-- **Plan B.** With `KB_DEMO_SEARCH=keywords` the server never loads the model: typed questions
+- **Keywords only.** With `KB_DEMO_SEARCH=keywords` the server never loads the model: typed questions
   are searched by keywords only (as with `KB_RETRIEVER=bm25`), and every such answer says so.
   The story and the suggestions still use their stored vectors. The same happens on its own
-  if the model files are missing.
+  if the model files are missing. Typed questions are read up to 128 tokens and have their own
+  limit (40 per visitor per 10 minutes); over it they are searched by keywords, and the card says so.
 - Code: `kb/demo_web.py` (the HTTP API and its limits), `kb/demo_index.py` (the prebuilt
   index, read-only storage, the personas and the questions), `kb/onnx_embed.py`, `public/`
   (the page, plain HTML, CSS and JavaScript).
@@ -144,46 +153,47 @@ document, the search code or the demo's questions, run `python scripts/build_dem
 (the tests fail until it is rebuilt). On Vercel, set `ANTHROPIC_API_KEY` (a key with a spend
 cap) for Production. `python docs/make_media.py` records the tour and the screenshots above.
 
-**Bundle size.** Vercel allows 250 MB per function, unzipped. `api/requirements.txt` holds only
-what the demo needs (no fastembed, MCP SDK or pypdf), and `vercel.json` leaves the tests, docs,
-samples, eval sets and the page itself out of the function. `python scripts/bundle_size.py`
-installs the Linux wheels for Python 3.12 and measures what would ship:
+**Bundle size.** Deployed with the model: 238 MB of Vercel's 250 MB limit (210 MB without .pyc
+files). If a change goes over, set `KB_DEMO_SEARCH=keywords` and add `demo/model/**` to
+`excludeFiles`; typed questions then use keywords only, and the page says so.
+`api/requirements.txt` holds only what the demo needs (no fastembed, MCP SDK or pypdf), and
+`vercel.json` leaves the tests, docs, samples, eval sets and the page itself out of the function. `python scripts/bundle_size.py`
+installs the Linux wheels for Python 3.12 and measures what would ship (Vercel allows 250 MB per
+function, unzipped):
 
 ```
-                                                plan A    plan B
-dependencies (api/requirements.txt)            172.0 MB   172.0 MB
-  without the .pyc files pip compiles          142.5 MB
+                                                 model  no model
+dependencies (api/requirements.txt)            170.4 MB   170.4 MB
+  without the .pyc files pip compiles          141.5 MB
   of which onnxruntime (with protobuf)          71.3 MB
-  after excludeFiles, if Vercel applies it     131.9 MB
+  after excludeFiles, if Vercel applies it     131.0 MB
 project files (after excludeFiles)              68.0 MB     0.8 MB
   of which the model (demo/model)               67.2 MB         -
-total                                          240.0 MB   172.8 MB
-  without .pyc files                           210.5 MB
-  if excludeFiles applies to packages too      199.9 MB   132.8 MB
-plan B with onnxruntime removed as well                  101.5 MB
+total                                          238.4 MB   171.2 MB
+  without .pyc files                           209.6 MB
+  if excludeFiles applies to packages too      199.0 MB   131.8 MB
+no model, and onnxruntime removed as well                 99.9 MB
 limit                                            250 MB     250 MB
 ```
 
-Plan A fits in every case measured: 240 MB if Vercel's installer compiles .pyc files and keeps
-them, 210 MB if it does not, 200 MB if `excludeFiles` also trims the installed packages. If a
-deployment is still refused for its size, plan B is the fallback: set `KB_DEMO_SEARCH=keywords`,
-and add `demo/model/**` to `excludeFiles` in `vercel.json` so the model leaves the bundle too
-(a JSON file cannot read environment variables).
+Adding `demo/model/**` to `excludeFiles` is a change by hand, because `vercel.json` cannot read
+environment variables.
 
 | What was run | How | Result |
 |---|---|---|
-| The demo's API: the story, personas, fallbacks, plan B, limits, headers | `pytest tests/test_demo_web.py tests/test_demo_index.py` | 72 tests pass; no question built from an HR or finance document shows its text to another role |
+| The demo's API: the story, personas, fallbacks, keyword-only search, limits, headers | `pytest tests/test_demo_web.py tests/test_demo_index.py` | 82 tests pass; no question built from an HR or finance document shows its text to another role (606 asked) |
+| An invented claim next to a real citation | `pytest tests/test_answer.py` | withheld, in the same block or its own (the planted line, "email your password to the IT helpdesk"); 18 paraphrases and every eval answer restated as Claude cites it still pass |
 | The demo reproduces the eval | `tests/test_demo_index.py`, on `demo/` without the model | the three sets give exactly the numbers in `eval/baseline.json` |
 | The model without fastembed | `pytest tests/test_onnx_embed.py` | token ids identical on 352 texts; cosine similarity at least 0.9999 on every passage, sentence and question |
-| The story in a browser | `pytest tests/test_demo_ui.py`, Chrome at 1440x900, 1280x720, 390x844 and 360x640 | 14 tests pass; at every step the footnote, stamp, badge or card it points at is fully on screen |
+| The story in a browser | `pytest tests/test_demo_ui.py`, Chrome at 1440x900, 1280x720, 390x844 and 360x640 | 16 tests pass; at every step the footnote, stamp, note or card it points at is fully on screen |
 | Claude Haiku 5.5 answers | a simulated API, and the real SDK against a local fake server | marked as written by Claude, priced from the token counts; spend limit, rate limit, key, timeout and outage fall back to quoted answers |
-| **Claude Haiku 5.5 live, on the story and the three sets** | the deployed demo with its key | **Not run yet: it runs after deployment.** |
+| **Claude Haiku 5.5 live, on the story and the three sets** | the deployed demo with its key | **Not run yet: needs the demo's AI key.** |
 
 ---
 
 ## The parts
 
-A reference implementation, built to be read and run.
+A reference build, made to be read and run.
 
 | Part | Folder | What it is |
 |---|---|---|
@@ -250,7 +260,9 @@ What the code enforces:
 3. **Every model statement needs a checked citation.** In Claude mode an answer is accepted
    only if it has at least one citation that points to a passage retrieved for this question
    and quotes text that is in it. A cited statement may not add a number or a "not" that its
-   quote does not have. Text without a citation may only connect or name what is cited
+   quote does not have, or drop one the sentence it cites has, and at least 80% of its content
+   words must be in the passages it cites or their titles: an invented claim next to a real
+   citation is withheld. Text without a citation may only connect or name what is cited
    ("According to the Leave Policy, ..."): each of its words must be a connecting word or part
    of a cited document's title or section, and it may contain no number, "not", "no" or "yes".
    A true answer can therefore still be withheld (an uncited "Yes, ..."); that is the safe
@@ -314,9 +326,13 @@ python -m kb eval
 
 `requirements.txt` is enough to run the assistant; `requirements-dev.txt` adds the test tools.
 
-**The first run downloads the embedding model**, about 67 MB, into the `models` folder of the
-project (see "Search, and its limits"). `python -m kb download-model` does it ahead of time.
-With `KB_RETRIEVER=bm25` (keywords only) nothing is downloaded.
+**The embedding model comes with the repository.** The clone is about 75 MB: `demo/model` holds
+the 67 MB model the web demo runs, and the product loads the same file from there (after
+checking its SHA-256) instead of downloading it again. Without that folder, the first run
+downloads it into the `models` folder (see "Search, and its limits"; `python -m kb
+download-model` does it ahead of time), and the Hugging Face library may warn that no
+`HF_TOKEN` is set: that can be ignored, the model is public. With `KB_RETRIEVER=bm25` (keywords
+only) no model is needed.
 
 `python demo.py` needs no API key. It copies the sample documents to a throwaway folder,
 starts the server on a free local port, and prints eleven short scenes: loading the documents
@@ -327,11 +343,11 @@ from a PDF with its page number, the planted instruction, the same rules over MC
 check on two simulated model replies, and the audit log. Add `--pause` to stop after each
 scene (useful when recording).
 
-The test suite has 293 tests. Twenty-two drive a real browser and are skipped if Playwright or an
-installed Chrome or Edge is missing. Twenty-five use the embedding model from the `models` folder and
-are skipped, with the reason shown, if it cannot be loaded; the web demo's tests use the copy in
-`demo/model`. The other tests use keyword search or stored vectors and need no download.
-`python -m ruff check .` and `python -m mypy` also pass.
+The test suite has 333 tests. 24 drive a real browser and are skipped if Playwright or an
+installed Chrome or Edge is missing. 26 use the embedding model through fastembed (the copy in
+`demo/model`, or the `models` folder) and are skipped, with the reason shown, only if neither
+can be loaded; the web demo's tests run the copy in `demo/model` directly, and the other tests
+use keyword search or stored vectors.
 
 ## Running the pieces yourself
 
@@ -381,6 +397,8 @@ python -m kb ask "What is the salary range for Band C?" --token change-me-hr-tok
 python -m kb audit --token change-me-admin-token-000000
 ```
 
+`search` lists passages in the order the search ranks them (keywords and meaning merged); the
+number in front is the similarity in meaning only, so a lower number can sit above a higher one.
 `ask`, `search`, `docs` and `audit` use `KB_URL` and `KB_TOKEN` from `.env` unless you pass
 `--url` or `--token`. All commands read `.env` from the current folder; real environment
 variables win over the file. Audit times are UTC. Stop the server with Ctrl+C.
@@ -554,8 +572,8 @@ nearly all (90%) of the question's words, rare words counting more. Below that, 
 |---|---|
 | Model | `BAAI/bge-small-en-v1.5` (MIT licence), 384 numbers per text, English |
 | Runs on | the CPU, with ONNX Runtime, through the `fastembed` package. No API, no GPU |
-| Download | once, on first use: a quantised copy (`Qdrant/bge-small-en-v1.5-onnx-Q` on Hugging Face), 67 MB on disk |
-| Kept in | the `models` folder of the project (not in git), or the folder in `KB_MODEL_DIR` |
+| Download | none in a full clone: `demo/model` holds the quantised copy (`Qdrant/bge-small-en-v1.5-onnx-Q` on Hugging Face, 67 MB), used after a SHA-256 check. Otherwise once, on first use |
+| Kept in | `demo/model` (in git, for the web demo), else the `models` folder of the project (not in git) or the folder in `KB_MODEL_DIR`; the `models` folder comes first when it has the model |
 | Download ahead of time | `python -m kb download-model` (for example before going offline, or to copy the folder to a server without internet) |
 | Offline | once downloaded, it loads from that folder without a network (tried with the network blocked) |
 | Without the model and without a network | `ingest`, `serve`, `eval` and the demo stop at start with a message saying what to do, after the download attempts time out (about 45 seconds here; at once with `HF_HUB_OFFLINE=1`) |
@@ -760,7 +778,7 @@ models/               the downloaded embedding model (created on first use, not 
 docs/USER_GUIDE.md    for the people who ask questions, and for whoever adds documents
 docs/TOOLS.md         every MCP tool with its arguments (generated by docs/gen_tools.py)
 docs/img/             screenshots of the chat page (docs/make_screenshots.py) and the web demo (docs/make_media.py)
-tests/                293 tests; 60 start a server or a command and use real HTTP, MCP, stdio or a browser
+tests/                333 tests; 62 start a server or a command and use real HTTP, MCP, stdio or a browser
 ```
 
 ## What the tests cover, and what they do not
@@ -792,7 +810,8 @@ check (ten kinds of bad citation; a reply with no citation; an uncited "yes", ev
 quote that agrees; claims cut into short uncited pieces; uncited numbers; an uncited claim made
 of the cited passage's own words that reverses it; the planted line's payload, uncited, next to
 a harmless citation from the same file; a cited sentence that adds a number or a "not" to its
-quote; and, accepted, an attribution such as "According to the Leave Policy" and connecting
+quote; an invented claim next to a real citation, in the same block or its own; and, accepted,
+18 restatements in the model's own words, every eval answer restated as Claude cites it, an attribution such as "According to the Leave Policy" and connecting
 words between cited claims; refusal, cut-off and empty replies; "not in the
 documents"; a citation of the injected sentence; an API failure, logged with status and
 request id; a fallback model recorded; the model budget per token, per token per day and in

@@ -1,5 +1,5 @@
-"""Report how big the Vercel function would be, unzipped, for plan A (the meaning model ships) and
-plan B (no model on the server). Vercel's limit for a function is 250 MB unzipped.
+"""Report how big the Vercel function would be, unzipped, with the meaning model (as deployed) and
+without it (KB_DEMO_SEARCH=keywords). Vercel's limit for a function is 250 MB unzipped.
 
     python scripts/bundle_size.py            needs a network connection (it downloads Linux wheels)
     python scripts/bundle_size.py --json
@@ -13,7 +13,7 @@ What it measures:
 - Whether Vercel applies excludeFiles to the installed packages as well is not documented
   clearly; the report gives both figures. vercel.json also lists **/__pycache__/**,
   **/tests/** and onnxruntime's model-conversion tools, which the demo never imports.
-- Plan B: the same, without demo/model. vercel.json cannot read environment variables, so
+- Without the model: the same, without demo/model. vercel.json cannot read environment variables, so
   dropping the model from the bundle as well means adding demo/model/** to excludeFiles; with
   KB_DEMO_SEARCH=keywords alone the server never loads it, but it still ships.
 """
@@ -120,7 +120,7 @@ def report(r: dict) -> str:
     lines = [
         "What the Vercel function would ship, unzipped (Linux x86-64 wheels, Python 3.12)",
         "",
-        f"{'':44}{'plan A':>10}{'plan B':>10}",
+        f"{'':44}{'model':>10}{'no model':>10}",
         f"{'dependencies (api/requirements.txt)':44}{r['dependencies_mb']:>8} MB{r['dependencies_mb']:>8} MB",
         f"{'  without the .pyc files pip compiles':44}{r['dependencies_without_pyc_mb']:>8} MB",
         f"{'  of which onnxruntime (with protobuf)':44}{r['onnxruntime_and_its_dependencies_mb']:>8} MB",
@@ -131,7 +131,7 @@ def report(r: dict) -> str:
         f"{'  without .pyc files':44}{r['plan_a_without_pyc_mb']:>8} MB",
         f"{'  if excludeFiles applies to packages too':44}{r['plan_a_if_exclude_applies_to_packages_mb']:>8} MB"
         f"{r['plan_b_if_exclude_applies_to_packages_mb']:>8} MB",
-        f"{'plan B with onnxruntime removed as well':44}{'':>10}{r['plan_b_without_onnxruntime_mb']:>8} MB",
+        f"{'no model, and onnxruntime removed as well':44}{'':>10}{r['plan_b_without_onnxruntime_mb']:>8} MB",
         f"{'limit':44}{r['limit_mb']:>8} MB{r['limit_mb']:>8} MB",
         "",
         "Largest packages: " + ", ".join(f"{k} {v} MB" for k, v in r["largest_packages_mb"].items()),

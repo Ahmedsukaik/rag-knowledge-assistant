@@ -84,7 +84,7 @@ STORY = {
 }
 # Ready-made questions for free use: everyday questions first, then the ones that probe a rule
 # ("restricted": the answer is in a document this persona may not open).
-CHIPS = [
+CHIPS: list[dict[str, Any]] = [
     {"label": "Hotel limit in London", "question": "What is the hotel limit per night in London?", "persona": "maria",
      "group": "everyday"},
     {"label": "Report a lost laptop", "question": "How quickly must I report a lost laptop?", "persona": "maria",
