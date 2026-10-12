@@ -121,8 +121,10 @@ def test_the_six_step_story_with_each_target_on_screen(browser, site, width, hei
     ui.title("Ask in your own words.")                                     # 2
     ui.tap(ui.button("Ask it"))
     ui.title("Found by meaning, on page 4 of a PDF.")
-    ui.on_screen(page.locator(".card .tag.kw"))
-    assert "Keyword search alone found nothing" in page.locator(".card .tag.kw").inner_text()
+    ui.on_screen(page.locator(".card .kw-note"))
+    assert "A plain word search would have refused this" in page.locator(".card .kw-note").inner_text()
+    assert "Keyword search alone would have refused this question." in page.locator("#story").inner_text()
+    assert page.locator(".card .meta").is_hidden()  # compact cards during the story
     if not ui.phone:
         ui.on_screen(page.locator("#desk mark.hl.active").first)
         assert "page 4" in page.locator("#desk").inner_text().lower()
@@ -131,7 +133,7 @@ def test_the_six_step_story_with_each_target_on_screen(browser, site, width, hei
     ui.title("Who can see what.")                                          # 3
     ui.tap(ui.button("Ask as Maria"))
     ui.title("Maria gets nothing.")
-    ui.on_screen(page.locator(".stamp"))
+    ui.on_screen(page.locator(".card .stamp"))
     ui.tap(ui.button("Ask as Hana"))
     ui.title("Hana gets the answer, with its source.")
     hana = ui.card("Hana")
@@ -150,15 +152,22 @@ def test_the_six_step_story_with_each_target_on_screen(browser, site, width, hei
 
     ui.title("Where it still misses.")                                     # 5
     ui.tap(ui.button("Ask about sick days"))
-    ui.title("A near miss: it quotes annual leave.")
+    ui.title("A near miss.")
     ui.on_screen(ui.card("Maria").locator(".src").first)
-    assert "Check the source." in page.locator("#story").inner_text() and "14 of 21 and 10 of 16" in page.locator("#story").inner_text()
-    ui.tap(page.get_by_role("button", name="Next: cost and test results"))
+    assert "The footnote makes that easy to spot." in page.locator("#story").inner_text()
+    assert page.locator(".card .kw-note").count() == 0  # not on the near miss
+    ui.tap(page.get_by_role("button", name="Next: what you'd get"))
 
-    ui.title("What it costs, and how it was tested.")                      # 6
-    ui.on_screen(page.locator(".report .cost-figure"))
+    ui.title("What you'd get on your documents.")                          # 6
+    ui.on_screen(page.locator(".report .takeaways"))
+    assert "0 leaks in 606 test questions" in page.locator(".report .takeaways").inner_text()
+    assert page.locator(".report .eval").is_hidden()  # the tables wait behind "How it was tested"
+    if width < 900:
+        assert page.locator("#switch-row").is_hidden()
     report = page.locator(".report").inner_text()
-    assert "$0" in report and "14 of 21" in report and "10 of 16" in report and "Runs after deployment" in report
+    assert "$0" in report and "14 of 21" in report and "10 of 16" in report and "after deployment" not in report
+    page.locator(".tested summary").click()
+    assert "New questions A" in page.locator(".report .eval").inner_text() and page.locator(".report .eval").is_visible()
     ui.tap(page.get_by_role("button", name="Try it yourself"))
     page.locator(".story-title", has_text="Ask anything an employee would.").wait_for()
     assert page.locator("#input").is_visible() and page.locator(".chip").count() >= 6
@@ -174,7 +183,7 @@ def test_a_phone_works_with_single_taps(browser, site):
     ui.card("Maria").locator(".fn").first.tap()           # one tap opens the source; nothing needs a hover
     assert page.evaluate("document.body.dataset.pane") == "source"
     page.locator("#desk mark.hl.active").first.wait_for()
-    page.get_by_role("button", name="Back to the answer").tap()
+    page.locator(".switch-row button", has_text="Answer").tap()
     assert page.evaluate("document.body.dataset.pane") == "answer"
     page.locator(".switch-row button", has_text="Source").tap()
     assert page.locator("#desk mark.hl.active").is_visible()
@@ -193,7 +202,9 @@ def test_free_use_with_chips_personas_and_a_typed_question(browser, site):
     page = ui.page
     page.get_by_role("button", name="Skip to free use").click()
     page.locator(".story-title", has_text="Ask anything").wait_for()
-    page.locator(".chip", has_text="A document that talks to the AI").click()
+    assert page.locator(".chip").first.inner_text() == "Hotel limit in London"  # everyday questions first
+    assert "try to break it:" in page.locator("#chips").inner_text().lower()
+    page.locator(".chip", has_text="A document with a hidden instruction").click()
     card = ui.card("Maria")
     card.locator(".warn").wait_for()
     assert "addressed to AI assistants" in card.locator(".warn").inner_text()
@@ -204,10 +215,17 @@ def test_free_use_with_chips_personas_and_a_typed_question(browser, site):
     page.locator("#input").fill("When is the pay review?")
     page.locator("#input").press("Enter")
     ui.card("Hana").locator(".fn").first.wait_for()
-    assert "Found by meaning and keywords" in ui.card("Hana").inner_text()
-    page.locator(".chip-more").click()
+    assert "Matched by meaning" in ui.card("Hana").inner_text()
     page.locator(".chip", has_text="Payment runs, as Maria").click()
     page.locator(".card.answer .stamp").first.wait_for()
+    refusal = ui.card("Maria").inner_text()
+    assert "treated exactly like one that does not exist" in refusal and "Try naming the document or product." in refusal
+    assert "Leave Policy" in refusal and "Salary Bands" not in refusal
+    page.locator("#desk .stamp").wait_for()  # the source pane shows the refusal, not an empty page
+    page.locator("#input").fill("can I bring my cat to work")
+    page.locator("#input").press("Enter")
+    page.locator(".card.answer .a-q", has_text="can I bring my cat to work").wait_for()
+    assert "Nothing in the documents Maria can open answers this." in ui.card("Maria").inner_text()
     assert page.locator(".persona[aria-pressed='true']").inner_text().startswith("M")
     ui.close()
 
@@ -236,16 +254,22 @@ def test_with_the_ai_on_answers_are_marked_and_priced(browser, index):
         ui.button("Ask Maria's question").click()
         ui.title("Answered, with its source.")
         card = ui.card("Maria")
-        assert "Written by Claude Haiku 5.5" in card.inner_text() and "Cost $0.00015" in card.inner_text()
+        assert "Written by Claude Haiku 5.5, checked" in card.locator(".by").inner_text()
         for name in ("Next: in her own words", "Ask it", "Next: who can see what", "Ask as Maria", "Ask as Hana",
                      "Next: catch a bad AI draft", "Send the forced draft", "Next: where it still misses", "Ask about sick days",
-                     "Next: cost and test results"):
+                     "Next: what you'd get"):
             page.get_by_role("button", name=name).click()
             page.wait_for_timeout(100)
             page.locator("#story-actions .btn-primary").wait_for()
-        ui.title("What it costs")
+        ui.title("What you'd get")
         figure = page.locator(".report .cost-figure").inner_text()
         assert "measured, this run" in figure.lower() and "$0.00060" in figure and "4 answers written by Claude" in figure
+        page.get_by_role("button", name="Try it yourself").click()
+        page.locator(".chip", has_text="Hotel limit in London").click()
+        free = ui.card("Maria")
+        free.locator(".meta").wait_for()
+        assert "Cost $0.00015 (1,200 tokens in, 60 out)" in free.inner_text()
+        assert page.locator("[data-ai='on']").is_visible()  # the choice between AI and quotes, when the AI is on
         ui.close()
     finally:
         server.should_exit = True
@@ -262,7 +286,7 @@ def test_keyword_only_search_is_labelled(browser):
         page.locator("#input").press("Enter")
         card = ui.card("Maria")
         card.locator(".fn").first.wait_for()
-        assert "Found by keywords only" in card.inner_text() and "meaning model is not on this server" in card.inner_text()
+        assert "Matched by keywords only" in card.inner_text() and "meaning model is not on this server" in card.inner_text()
         ui.close()
     finally:
         server.should_exit = True
@@ -330,4 +354,31 @@ def test_no_jargon_on_the_way(browser, site):
     visible = page.evaluate("document.body.innerText").lower()
     for word in ("passage_id", "extractive", "bm25", "not_found", "token ", "chunk", "embedding", "rrf"):
         assert word not in visible, word
+    ui.close()
+
+
+def test_without_the_ai_quoted_mode_reads_as_a_choice_not_a_fault(browser, site):
+    ui = Page(browser, site)
+    page = ui.page
+    story = page.locator("#story").inner_text()
+    assert "This demo quotes the documents word for word, so nothing is made up." in story and "No AI key" not in story
+    page.get_by_role("button", name="Skip to free use").click()
+    page.locator("#input").fill("how much holiday do I get each year")
+    page.locator("#input").press("Enter")
+    ui.card("Maria").locator(".fn").first.wait_for()
+    assert ui.card("Maria").locator(".why").count() == 0 and "Cost" not in ui.card("Maria").inner_text()
+    assert page.locator("[data-ai]").count() == 0  # no "Written by AI" choice when the AI is off
+    ui.close()
+
+
+def test_a_phone_shows_a_preview_first_and_asks_from_the_sheet(browser, site):
+    ui = Page(browser, site, 390, 664)
+    page = ui.page
+    ui.on_screen(page.locator("#desk .spec-front"))
+    assert page.locator("#desk .spec-front").evaluate("el => getComputedStyle(el).transform") == "none"
+    assert page.locator(".lede").is_visible()
+    page.get_by_role("button", name="Skip to free use").tap()
+    ui.on_screen(page.locator("#story #input"))  # the question box sits in the bottom sheet
+    assert page.locator("#input").get_attribute("placeholder") == "Ask a question..."
+    assert page.locator("#repo").inner_text().strip() == "Code"
     ui.close()

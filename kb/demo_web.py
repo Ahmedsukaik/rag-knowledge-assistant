@@ -42,7 +42,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .answer import Answer, AnswerUnavailable, ClaudeAnswerer, ExtractiveAnswerer
-from .demo_index import CHIPS, PERSONAS, STORY, DemoIndex, collect_audit
+from .demo_index import CHIPS, LEAK_CHECKS, PERSONAS, STORY, DemoIndex, collect_audit
 from .embeddings import Embedder
 from .retrieval import Hit
 from .service import BadRequest, KnowledgeBase, ModelBudget, NotFound, clean_query
@@ -305,6 +305,8 @@ class Demo:
                        "note": SEARCH_NOTES.get(state)},
             "personas": [p.public() for p in PERSONAS.values()],
             "collections": collections,
+            "documents": [{"title": d["title"], "collection": d["collection"]} for d in docs],
+            "leak_checks": LEAK_CHECKS,
             "story": STORY, "chips": CHIPS,
             "eval": self.index.manifest.get("eval", {}),
             "price": PRICES[MODEL], "max_question": MAX_QUERY_CHARS, "repo": REPO,
@@ -342,10 +344,10 @@ class Demo:
         if simulate:
             answerer, written = ClaudeAnswerer(client=SimulatedBadDraft(), model=MODEL, effort="low", max_tokens=MAX_TOKENS,
                                                thinking="disabled", embedder=embedder), "simulated"
-        elif not want_ai:
-            answerer, reason = ExtractiveAnswerer(embedder=embedder), "chosen"
         elif self.client is None:
             answerer, reason = ExtractiveAnswerer(embedder=embedder), self.why_no_ai or "no_key"
+        elif not want_ai:
+            answerer, reason = ExtractiveAnswerer(embedder=embedder), "chosen"
         else:
             step = ClaudeOrQuotes(self.client, embedder, gate)
             answerer = step

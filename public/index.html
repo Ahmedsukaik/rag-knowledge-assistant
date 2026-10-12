@@ -42,12 +42,12 @@
       <span class="brand-mark" aria-hidden="true"><i></i><i class="hl"></i><i></i><b>1</b></span>
       <div class="brand-text">
         <h1 class="brand-name">RAG Knowledge Assistant</h1>
-        <div class="brand-sub">Reference build on a fictional company's documents</div>
+        <div class="brand-sub">A demo on a made-up company's documents</div>
       </div>
     </div>
     <div class="top-actions">
       <button type="button" class="btn btn-ghost" id="replay" hidden><svg class="i" aria-hidden="true"><use href="#refresh"/></svg><span>Replay<span class="wide-only"> the demo</span></span></button>
-      <a class="btn btn-ghost" id="repo" href="https://github.com/Ahmedsukaik/rag-knowledge-assistant" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#code"/></svg><span>Source<span class="wide-only"> code</span></span></a>
+      <a class="btn btn-ghost" id="repo" href="https://github.com/Ahmedsukaik/rag-knowledge-assistant" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#code"/></svg><span class="wide-only">Source code</span><span class="phone-inline">Code</span></a>
     </div>
   </header>
 
@@ -70,7 +70,7 @@
       <form class="composer" id="composer" hidden>
         <label for="input" class="sr-only">Your question</label>
         <div class="composer-box">
-          <textarea id="input" rows="1" maxlength="1000" placeholder="Ask about leave, expenses, IT, the office..." autocomplete="off"></textarea>
+          <textarea id="input" rows="1" maxlength="1000" placeholder="Ask about leave, expenses, IT, the office..." enterkeyhint="send" autocomplete="off"></textarea>
           <button type="submit" class="btn btn-primary" id="send"><svg class="i" aria-hidden="true"><use href="#search"/></svg><span>Ask</span></button>
         </div>
         <div class="composer-meta" id="composer-meta"></div>

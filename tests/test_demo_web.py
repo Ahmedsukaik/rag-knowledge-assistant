@@ -62,6 +62,9 @@ def test_config_says_what_the_demo_runs_on(client):
     assert cfg["search"]["typed"] == "meaning" and cfg["search"]["note"] is None
     assert [p["id"] for p in cfg["personas"]] == ["maria", "hana", "farid"]
     assert cfg["story"] == STORY and cfg["chips"] == CHIPS and cfg["collections"] == {"general": 6, "hr": 1, "finance": 2}
+    assert {d["title"] for d in cfg["documents"] if d["collection"] == "hr"} == {"Salary Bands 2027 (HR only)"}
+    assert len(cfg["documents"]) == 9 and cfg["leak_checks"] == 606
+    assert [c["group"] for c in cfg["chips"]][:6] == ["everyday"] * 6  # everyday questions first
     assert cfg["eval"]["heldout"]["answered"] == 14 and cfg["eval"]["heldout_v2"]["answered"] == 10
     assert cfg["repo"] == "https://github.com/Ahmedsukaik/rag-knowledge-assistant"
 
@@ -119,7 +122,8 @@ def test_every_chip_does_what_its_label_says(client, chip):
     out = ask(client, chip["question"], chip["persona"])
     refused = chip["label"] in ("Something it can't answer", "An error code it doesn't know", "Payment runs, as Maria")
     assert (out["status"] == "not_found") is refused, out["status"]
-    if chip["label"] == "A document that talks to the AI":
+    assert chip.get("restricted", False) is (chip["label"] == "Payment runs, as Maria")
+    if chip["label"] == "A document with a hidden instruction":
         assert out["warnings"]
 
 
@@ -128,8 +132,11 @@ def shown(out: dict[str, Any]) -> str:
     """Everything an answer shows except the visitor's own question (echoed in the card and the audit entry)."""
     audit = [{k: v for k, v in e.items() if k != "query"} for e in out["audit"]]
     return json.dumps({k: v for k, v in out.items() if k not in ("question", "audit")} | {"audit": audit}, ensure_ascii=False)
-@pytest.mark.parametrize("persona, collection, secrets", [("maria", "hr", HR_ONLY), ("maria", "finance", FINANCE_ONLY),
-                                                         ("farid", "hr", HR_ONLY), ("hana", "finance", FINANCE_ONLY)])
+LEAK_CASES = [("maria", "hr", HR_ONLY), ("maria", "finance", FINANCE_ONLY), ("farid", "hr", HR_ONLY), ("hana", "finance", FINANCE_ONLY)]
+KEYWORD_LEAK_CHECKS = 120
+
+
+@pytest.mark.parametrize("persona, collection, secrets", LEAK_CASES)
 def test_no_question_built_from_a_restricted_document_reaches_its_text(index, persona, collection, secrets):
     client = TestClient(create_app(index, client=None))
     queries = restricted_queries(collection)
@@ -144,6 +151,13 @@ def test_no_question_built_from_a_restricted_document_reaches_its_text(index, pe
     assert len(queries) > 50
 
 
+def test_the_number_of_leak_checks_the_page_quotes_is_the_number_asked():
+    from kb.demo_index import LEAK_CHECKS
+
+    asked = sum(len(restricted_queries(c)) for _, c, _ in LEAK_CASES) + KEYWORD_LEAK_CHECKS
+    assert asked == LEAK_CHECKS
+
+
 def test_restricted_passages_look_exactly_like_missing_ones(client):
     store = DemoIndex(model_folder=None).store
     for chunk in store.chunks(frozenset({"hr", "finance"})):
@@ -156,7 +170,7 @@ def test_restricted_passages_look_exactly_like_missing_ones(client):
 
 def test_keyword_only_search_keeps_the_same_access_rules(keywords_index):
     client = TestClient(create_app(keywords_index, client=None))
-    for query in restricted_queries("hr")[:120]:
+    for query in restricted_queries("hr")[:KEYWORD_LEAK_CHECKS]:
         out = client.post("/api/ask", json={"question": query, "persona": "maria"}).json()
         assert not [s for s in HR_ONLY if s in shown(out)], query
 

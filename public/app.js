@@ -8,12 +8,11 @@
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const STEPS = 6;
-  const STORE_KEY = "rag-demo-v1";  // a new version of the page starts fresh instead of reading an old shape
+  const STORE_KEY = "rag-demo-v2";  // a new version of the page starts fresh instead of reading an old shape
   const COLL = { general: "General", hr: "HR", finance: "Finance" };
-  const KIND = { markdown: "Markdown", text: "Text file", pdf: "PDF" };
   const S = {
     config: null, step: 0, persona: "maria", answers: [], next: 1, story: {}, open: null, docs: {},
-    busy: false, wait: "", pending: null, pane: "answer", ai: true, keyboard: false, deskNote: null, fresh: 0, moreChips: false,
+    busy: false, wait: "", pending: null, pane: "answer", ai: true, keyboard: false, deskNote: null, fresh: 0,
   };
 
   const icon = (name, cls = "i") => `<svg class="${cls}" aria-hidden="true" focusable="false"><use href="#${name}"/></svg>`;
@@ -25,6 +24,7 @@
   const persona = (id) => (S.config?.personas || []).find((p) => p.id === id) || { id, name: id, team: "", role: "", collections: [] };
   const byId = (id) => S.answers.find((a) => a.id === id);
   const Q = () => S.config?.story || {};
+  const live = () => !!S.config?.live;
   const store = {
     get(k) { try { return JSON.parse(sessionStorage.getItem(k)); } catch { return null; } },
     set(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: fine */ } },
@@ -54,10 +54,12 @@
   // ------------------------------------------------------------------ asking
   function waitText(p) {
     const who = persona(p).name;
-    return S.config?.live && S.ai ? `Searching ${who}'s documents, then Claude Haiku 5.5 writes the answer (usually 2 to 5 seconds).`
+    return live() && S.ai ? `Searching ${who}'s documents, then Claude Haiku 5.5 writes the answer (usually 2 to 5 seconds).`
       : `Searching ${who}'s documents.`;
   }
-  async function ask(question, p, extra = {}) {
+  // meta.restricted: the answer is in a document this persona may not open (the story's salary
+  // question for Maria, the "as Maria" chip). Typed questions never say so: that would reveal it.
+  async function ask(question, p, extra = {}, meta = {}) {
     question = String(question || "").trim();
     if (!question || S.busy) return null;
     S.persona = p;
@@ -69,7 +71,7 @@
     reveal(".pending-card");
     try {
       const data = await api("POST", "/api/ask", { question, persona: p, ai: S.ai, ...extra });
-      const a = { ...data, id: S.next++, step: S.step };
+      const a = { ...data, id: S.next++, step: S.step, restricted: !!meta.restricted };
       S.answers.unshift(a);
       S.answers = S.answers.slice(0, 12);
       S.fresh = a.id;
@@ -91,7 +93,7 @@
   async function landed(a) {
     if (!a) { render(); return; }
     S.open = null; S.deskNote = null;
-    if (a.status === "not_found") S.deskNote = { persona: a.persona.name };
+    if (a.status === "not_found") S.deskNote = { id: a.id };
     render();
     if (!isPhone() && a.citations.length) await openSource(a.id, a.citations[0].number, { auto: true });
     requestAnimationFrame(revealTarget);
@@ -167,27 +169,34 @@
     return `<div class="desk-empty"><div><div class="ghost-page" aria-hidden="true"><i class="t"></i><i></i><i></i><i class="hl"></i><i></i><i></i><i></i><b>1</b></div>
       <p>${esc(text)}</p></div></div>`;
   }
+  function refusalDesk(a) {
+    const p = a.persona;
+    return `<div class="desk-empty"><div class="page refusal-page"><span class="stamp">Not in your documents</span>
+      <p>Nothing in the documents ${esc(p.name)} can open answers this question, so nothing is quoted${live() ? " and no AI is asked" : ""}.</p>
+      ${a.restricted ? `<p>A document ${esc(p.name)} may not open is treated exactly like one that does not exist.</p>` : ""}</div></div>`;
+  }
   function renderDoc() {
     const box = $("#desk");
-    const back = `<div class="back-row"><button type="button" class="btn btn-secondary" data-pane="answer">${icon("arrow-left")}Back to the answer</button></div>`;
+    if (S.step === 0 && isPhone()) { box.innerHTML = `<div class="desk-preview">${specimenFront()}</div>`; return; }
     const a = S.open && byId(S.open.id);
     const data = S.open && S.docs[S.open.key];
     if (!a || !data) {
-      box.innerHTML = (S.step === "free" || (S.step > 0 && S.step < 6) ? back : "") + emptyDesk(S.deskNote
-        ? `No source for this answer. Nothing ${S.deskNote.persona} may open answers the question, so nothing is quoted.`
-        : S.step === 6 ? "Every number on the left comes from the eval command in the repository, run on the same index as this demo."
-          : "Sources open here. Each footnote shows the exact sentence an answer quotes, marked on the page it comes from.");
+      const refused = S.deskNote && byId(S.deskNote.id);
+      box.innerHTML = refused ? refusalDesk(refused) : emptyDesk(S.step === 6
+        ? "Every number on this page comes from the eval command in the repository, run on the same index as this demo."
+        : "Sources open here. Each footnote shows the exact sentence an answer quotes, marked on the page it comes from.");
       return;
     }
     const doc = data.document;
     const cited = new Set(a.citations.filter((c) => c.number === S.open.n).map((c) => c.passage_id));
-    let html = back + `<article class="page" aria-label="Source document: ${esc(doc.title)}">
-      <div class="page-meta"><span>${esc(COLL[doc.collection] || doc.collection)} collection</span><span>${esc(KIND[doc.kind] || doc.kind || "")}${doc.pages ? ` &middot; ${doc.pages} pages` : ""}</span></div>
+    const page = (a.passages[S.open.n - 1] || {}).page;
+    let html = `<article class="page" aria-label="Source document: ${esc(doc.title)}">
+      <div class="page-meta">${esc(COLL[doc.collection] || doc.collection)}${page ? ` &middot; page ${page}` : ""}</div>
       <h2 class="page-title">${esc(doc.title)}</h2>
       <p class="page-from">Opened from footnote ${S.open.n} of ${esc(a.persona.name)}'s answer. Only documents ${esc(a.persona.name)} may open are shown here.</p>`;
-    let page = null, section = null;
+    let pageNo = null, section = null;
     for (const p of doc.passages) {
-      if (p.page && p.page !== page) { html += `<div class="page-break">Page ${p.page}</div>`; page = p.page; }
+      if (p.page && p.page !== pageNo) { html += `<div class="page-break">Page ${p.page}</div>`; pageNo = p.page; }
       if (p.section && p.section !== section && p.section !== doc.title) { html += `<h3>${esc(p.section)}</h3>`; }
       section = p.section;
       const ranges = [];
@@ -220,7 +229,7 @@
       if (prose) return `<span>${esc(text).replace(/\n/g, "<br>")}</span>${footnotes(a, part.sources || [])}`;
       const inner = text.replace(/^"/, "").replace(/"$/, "");
       return `<span class="quote">&ldquo;<span class="qt">${esc(inner)}</span>&rdquo;${footnotes(a, part.sources || [])}</span>`;
-    }).join(prose ? "" : "");
+    }).join("");
   }
   function sourcesList(a) {
     const numbers = [...new Set(a.citations.map((c) => c.number))].sort((x, y) => x - y);
@@ -236,8 +245,27 @@
     const all = Object.keys(S.config?.collections || COLL);
     const can = p.collections.map((c) => COLL[c] || c);
     const cannot = all.filter((c) => !p.collections.includes(c)).map((c) => COLL[c] || c);
+    const refused = a.status !== "not_found" ? "" : a.restricted
+      ? " A document this person may not open is treated exactly like one that does not exist."
+      : ` Nothing in the documents ${esc(p.name)} can open answers this.`;
     return `<aside class="margin-note"><span class="eyebrow">${icon("lock")}Who can see this</span>Asked as <b>${esc(p.name)}</b> (${esc(p.team)}).
-      ${esc(p.name)} can open ${esc(listing(can))} documents${cannot.length ? `, not ${esc(listing(cannot))}` : ""}.${a.status === "not_found" ? " A document this person may not open is treated exactly like one that does not exist." : ""}</aside>`;
+      ${esc(p.name)} can open ${esc(listing(can))} documents${cannot.length ? `, not ${esc(listing(cannot))}` : ""}.${refused}</aside>`;
+  }
+  function refusalHint(a) {
+    if (a.status !== "not_found" || S.step !== "free") return "";
+    const titles = (S.config?.documents || []).filter((d) => a.persona.collections.includes(d.collection)).map((d) => d.title);
+    return `<p class="hint">${icon("page", "i i-sm")}<span>${esc(a.persona.name)} can open: ${esc(titles.join("; "))}. Try naming the document or product.</span></p>`;
+  }
+  function byLabel(a) {
+    if (a.written_by === "claude") return a.status === "flagged" ? "Written by Claude, held" : "Written by Claude Haiku 5.5, checked";
+    if (a.written_by === "quoted") return "Quoted word for word";
+    if (a.written_by === "simulated") return "Forced test draft";
+    return "";
+  }
+  function kwNote(a) {
+    // Not on the story's near miss (step 5): there the sentence it found is the wrong one.
+    if (a.search.keywords_alone !== false || a.status === "not_found" || a.step === 5) return "";
+    return `<p class="kw-note">${icon("search", "i i-sm")}<span>A plain word search would have refused this. Matched by meaning.</span></p>`;
   }
   function tags(a) {
     const out = [];
@@ -245,10 +273,11 @@
       out.push(`<span class="tag ai">${icon("spark")}Written by Claude Haiku 5.5</span>`);
       if (a.status === "answered") out.push(`<span class="tag ok">${icon("check")}Every sentence checked against its source</span>`);
     } else if (a.written_by === "quoted") out.push(`<span class="tag">${icon("quote")}Quoted word for word, no AI</span>`);
-    else if (a.written_by === "simulated") out.push(`<span class="tag test">${icon("flask")}Test draft, simulated: no AI call</span>`);
-    if (a.status !== "not_found") out.push(`<span class="tag">${icon("search")}${a.search.by === "meaning" ? "Found by meaning and keywords" : "Found by keywords only"}</span>`);
-    if (a.search.keywords_alone === false) out.push(`<span class="tag kw">${icon("alert")}Keyword search alone found nothing</span>`);
-    out.push(`<span class="tag">${icon("coin")}${a.cost && a.cost.usd ? `Cost ${money(a.cost.usd)} (${a.cost.input_tokens.toLocaleString("en-US")} tokens in, ${a.cost.output_tokens.toLocaleString("en-US")} out)` : "Cost $0"}</span>`);
+    else if (a.written_by === "simulated") out.push(`<span class="tag test">${icon("flask")}Forced test draft: no AI call</span>`);
+    if (a.status !== "not_found") out.push(`<span class="tag">${icon("search")}${a.search.by === "meaning" ? "Matched by meaning" : "Matched by keywords only"}</span>`);
+    if (a.written_by === "claude" && a.cost) {
+      out.push(`<span class="tag">${icon("coin")}Cost ${money(a.cost.usd)} (${a.cost.input_tokens.toLocaleString("en-US")} tokens in, ${a.cost.output_tokens.toLocaleString("en-US")} out)</span>`);
+    }
     return `<div class="meta">${out.join("")}</div>`;
   }
   function auditList(a) {
@@ -278,9 +307,10 @@
     const warn = (a.warnings || []).map((w) => `<p class="warn">${icon("alert")}<span>${esc(w)}</span></p>`).join("");
     const why = a.quoted_because ? `<p class="why">${esc(a.quoted_because)}</p>` : "";
     const note = a.search.note ? `<p class="why">${esc(a.search.note)}</p>` : "";
+    const by = byLabel(a);
     return `<article class="card answer${fresh}${past}" data-card="${a.id}" data-status="${esc(a.status)}" aria-label="${esc(p.name)}'s question">
-      <header class="a-head"><span class="avatar ${esc(p.id)}" aria-hidden="true">${esc(p.name[0])}</span><div><span class="eyebrow">${esc(p.name)} asked</span><p class="a-q">${esc(a.question)}</p></div></header>
-      ${body}${warn}${sourcesList(a)}${tags(a)}${why}${note}${whoNote(a)}${auditList(a)}</article>`;
+      <header class="a-head"><span class="avatar ${esc(p.id)}" aria-hidden="true">${esc(p.name[0])}</span><div><span class="eyebrow">${esc(p.name)} asked${by ? `<span class="by"> &middot; ${esc(by)}</span>` : ""}</span><p class="a-q">${esc(a.question)}</p></div></header>
+      ${body}${kwNote(a)}${warn}${sourcesList(a)}${tags(a)}${why}${note}${whoNote(a)}${refusalHint(a)}${auditList(a)}</article>`;
   }
   function pendingCard() {
     const p = persona(S.pending.persona);
@@ -289,7 +319,7 @@
   }
   function storyAnswerIds() {
     const st = S.story;
-    return ({ 1: [st.leave], 2: [st.scanner], 3: [st.salaryHana, st.salaryMaria], 4: [st.draft], 5: [st.sick] })[S.step] || [];
+    return ({ 1: [st.leave], 2: [st.scanner], 3: [st.salaryMaria, st.salaryHana], 4: [st.draft], 5: [st.sick] })[S.step] || [];
   }
   function reportCard() {
     const cfg = S.config || {};
@@ -301,22 +331,32 @@
       ? `<div class="figure cost-figure"><span>Measured, this run</span><strong>${money(total)}</strong><small>${count(claude.length, "answer", "answers")} written by Claude Haiku 5.5, priced from the API's own token counts</small></div>
          <div class="figure"><span>1,000 answers like these</span><strong>about $${(total / claude.length * 1000).toFixed(2)}</strong><small>Search and quoting run on the server: no cost per question</small></div>`
       : `<div class="figure cost-figure"><span>This run</span><strong>$0</strong><small>Every answer was quoted word for word: no AI call was made.</small></div>
-         <div class="figure"><span>With the AI on</span><strong>about $${(estimate * 1000).toFixed(2)}</strong><small>per 1,000 answers. An estimate (1,000 tokens in, 300 out at Haiku 5.5 prices), not measured.</small></div>`;
+         <div class="figure"><span>With Claude on</span><strong>about $${(estimate * 1000).toFixed(2)}</strong><small>per 1,000 answers. An estimate (1,000 tokens in, 300 out at Haiku 5.5 prices), not measured.</small></div>`;
     const e = cfg.eval || {};
-    const sets = [["main", "Main set", "64 questions, used to tune the thresholds"], ["heldout", "Held-out set 1", "31 questions, never used for tuning"],
-      ["heldout_v2", "Held-out set 2", "30 questions, written separately"]];
+    const sets = [["main", "Tuning set", "64 questions, used to set the thresholds"], ["heldout", "New questions A", "31 questions, never used for tuning"],
+      ["heldout_v2", "New questions B", "30 questions, written separately"]];
     const rows = sets.filter(([k]) => e[k]).map(([k, name, about]) => {
       const x = e[k];
       return `<tr><th scope="row">${name}<small>${about}</small></th><td class="num" data-label="Answered">${x.answered} of ${x.answerable}</td>
-        <td class="num" data-label="Refused, not in the documents">${x.out_of_scope_refused} of ${x.out_of_scope}</td>
+        <td class="num" data-label="Refused, not in the documents">${x.out_of_scope_refused} of ${x.out_of_scope}<sup>${k === "heldout" ? "*" : ""}</sup></td>
         <td class="num" data-label="Refused, another role's documents">${x.restricted_refused} of ${x.restricted}</td>
         <td class="num" data-label="Restricted text shown">${x.restricted_text_found}</td></tr>`;
     }).join("");
-    return `<article class="card report" aria-labelledby="report-cost"><h3 id="report-cost">What this run cost</h3><div class="figures">${figures}</div>
-      <h3>How it was tested</h3>
+    const one = e.heldout, two = e.heldout_v2;
+    const honest = one && two ? `On new questions the documents do answer, it answered ${one.answered} of ${one.answerable} and ${two.answered} of ${two.answerable}. It refuses about a third of unseen everyday questions and sometimes quotes a near miss. Check the source.` : "";
+    return `<article class="card report" aria-labelledby="report-title"><h3 id="report-title" class="sr-only">What you would get</h3>
+      <ul class="takeaways">
+        <li>${icon("check-circle")}<span>Answers quote your own documents, with the page.</span></li>
+        <li>${icon("check-circle")}<span>Says "Not in your documents" instead of guessing.</span></li>
+        <li>${icon("check-circle")}<span>HR and finance text never reached the wrong person: 0 leaks in ${Number(cfg.leak_checks || 0).toLocaleString("en-US")} test questions.</span></li>
+      </ul>
+      ${honest ? `<p class="honest">${esc(honest)}</p>` : ""}
+      <h3 class="report-sub">What this run cost</h3><div class="figures">${figures}</div>
+      <details class="tested"><summary>How it was tested${icon("chev-down", "i i-sm chev")}</summary>
       <table class="eval"><thead><tr><th scope="col">Question set</th><th scope="col">Answered</th><th scope="col">Refused, not in the documents</th><th scope="col">Refused, another role's documents</th><th scope="col">Restricted text shown</th></tr></thead>
-      <tbody>${rows}<tr class="later"><th scope="row">Claude Haiku 5.5, live<small>the same sets with AI-written answers</small></th><td colspan="4">Runs after deployment</td></tr></tbody></table>
-      <p class="fine">Quoted answers, on the same index this demo uses. "Answered" counts questions the documents do answer; the test suite runs all three sets again on every change.</p></article>`;
+      <tbody>${rows}</tbody></table>
+      <p class="fine"><sup>*</sup> "2 of 6": of 6 questions the documents do not answer, it said so for 2 and quoted the nearest passage for the other 4. "Answered" counts questions the documents do answer. Quoted answers, on the same index this demo uses; the test suite runs all three sets again and fails if a number moves.</p>
+      </details></article>`;
   }
   function renderAnswers() {
     const box = $("#answers");
@@ -329,12 +369,22 @@
     } else {
       const shown = S.step === "free" ? S.answers.filter((a) => a.step === "free") : storyAnswerIds().map(byId).filter(Boolean);
       html += shown.map(card).join("");
-      if (!html && S.step === "free") html = `<article class="card empty-card"><div class="a-body">Ask a question, or pick a suggestion above. Switch between Maria, Hana and Farid to see what each one may read.</div></article>`;
+      if (!html && S.step === "free") html = `<article class="card empty-card"><div class="a-body">Ask a question, or pick a suggestion. Switch between Maria, Hana and Farid to see what each one may read.</div></article>`;
     }
     box.innerHTML = html;
   }
 
   // ------------------------------------------------------------------ who is asking, the question box
+  function placeComposer() {
+    const composer = $("#composer");
+    const inSheet = isPhone() && S.step === "free";
+    const home = inSheet ? $("#story") : $("#ask-pane");
+    if (composer.parentElement !== home) {
+      if (inSheet) $("#story").appendChild(composer);
+      else $("#ask-pane").insertBefore(composer, $("#chips"));
+    }
+    $("#input").placeholder = isPhone() ? "Ask a question..." : "Ask about leave, expenses, IT, the office...";
+  }
   function renderAsker() {
     const free = S.step === "free";
     const people = (S.config?.personas || []).map((p) => `<button type="button" class="persona" data-persona="${esc(p.id)}" aria-pressed="${p.id === S.persona}"${free && !S.busy ? "" : " disabled"}>
@@ -342,20 +392,21 @@
     $("#asker").innerHTML = `<span class="asker-label" id="asker-label">Asking as</span><div class="personas" role="group" aria-labelledby="asker-label">${people}</div>`;
     const composer = $("#composer"), chips = $("#chips");
     composer.hidden = !free; chips.hidden = !free;
+    placeComposer();
     if (!free) return;
     const cfg = S.config || {};
     const typed = cfg.search?.typed === "keywords"
-      ? `<span class="search-note">${icon("alert", "i i-sm")}${esc(cfg.search.note || "Questions you type are searched by keywords only.")}</span>`
-      : `<span class="search-note">${icon("search", "i i-sm")}Questions you type are searched by meaning and by keywords.</span>`;
-    $("#composer-meta").innerHTML = `<div class="seg" role="group" aria-label="How answers are written">
-        <button type="button" data-ai="on" aria-pressed="${!!(cfg.live && S.ai)}"${cfg.live ? "" : " disabled"}>Written by AI</button>
-        <button type="button" data-ai="off" aria-pressed="${!(cfg.live && S.ai)}">Quoted word for word</button></div>${typed}
-      ${cfg.live ? "" : `<span class="search-note">${icon("quote", "i i-sm")}AI writing is off: no AI key is set for this copy of the demo.</span>`}`;
-    const all = cfg.chips || [];
-    const shown = S.moreChips ? all : all.slice(0, 6);
-    chips.innerHTML = shown.map((c, i) => `<button type="button" class="chip${c.kind === "test" ? " test" : ""}" data-chip="${i}"${S.busy ? " disabled" : ""}>
-      ${c.kind === "test" ? icon("flask", "i i-sm") : ""}${esc(c.label)}</button>`).join("")
-      + (all.length > 6 ? `<button type="button" class="chip chip-more" data-more="1" aria-expanded="${!!S.moreChips}">${S.moreChips ? "Fewer suggestions" : `${all.length - 6} more suggestions`}</button>` : "");
+      ? `<span class="search-note keywords-only">${icon("alert", "i i-sm")}${esc(cfg.search.note || "Questions you type are searched by keywords only.")}</span>`
+      : `<span class="search-note">${icon("search", "i i-sm")}Questions you type are matched by meaning and by keywords.</span>`;
+    $("#composer-meta").innerHTML = (live() ? `<div class="seg" role="group" aria-label="How answers are written">
+        <button type="button" data-ai="on" aria-pressed="${!!S.ai}">Written by AI</button>
+        <button type="button" data-ai="off" aria-pressed="${!S.ai}">Quoted word for word</button></div>` : "") + typed;
+    const chip = (c) => `<button type="button" class="chip${c.group === "break" ? " test" : ""}" data-chip="${(cfg.chips || []).indexOf(c)}"${S.busy ? " disabled" : ""}>
+      ${c.group === "break" ? icon("flask", "i i-sm") : ""}${esc(c.label)}</button>`;
+    const everyday = (cfg.chips || []).filter((c) => c.group !== "break");
+    const breaking = (cfg.chips || []).filter((c) => c.group === "break");
+    chips.innerHTML = `<div class="chip-row">${everyday.map(chip).join("")}</div>
+      <p class="chip-label">Try to break it:</p><div class="chip-row">${breaking.map(chip).join("")}</div>`;
     $("#send").disabled = S.busy;
   }
 
@@ -365,14 +416,24 @@
   const primary = (go, label) => `<button type="button" class="btn btn-primary" data-go="${go}">${esc(label)}${icon("arrow-right")}</button>`;
   const waitLine = () => S.busy && S.wait ? `<p class="story-wait"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>Working on it</p>` : "";
   function aiLine() {
-    const cfg = S.config || {};
-    return cfg.live ? "Answers are written by Claude Haiku 5.5. Every sentence is checked against the passage it cites. When the demo's AI budget is used up, answers are quoted word for word, and the page says which."
-      : (cfg.quoted_because || "Answers are quoted word for word from the documents.") + " Every answer says how it was made.";
+    return live() ? "Answers are written by Claude Haiku 5.5. Every sentence is checked against the passage it cites. When the demo's AI budget is used up, answers are quoted word for word, and the page says which."
+      : "This demo quotes the documents word for word, so nothing is made up. With Claude on, answers are written in plain words and checked the same way (step 4).";
   }
-  function heldOut() {
-    const e = S.config?.eval || {};
-    const one = e.heldout, two = e.heldout_v2;
-    return one && two ? `the documents do answer, it answered ${one.answered} of ${one.answerable} and ${two.answered} of ${two.answerable}` : "the documents do answer, it answered about two thirds";
+  // The first screen shows what the story is about to do: an answer with its footnote, and a refusal.
+  // The quoted sentence is the Leave Policy's own (a test checks it is still in the document).
+  const LEAVE_SENTENCE = "Full-time employees receive 25 days of paid annual leave per calendar year, plus public holidays.";
+  function specimenFront() {
+    return `<div class="spec-card spec-front"><span class="eyebrow">Maria asked</span><p class="a-q">${esc(Q().leave)}</p>
+        <p class="a-body">&ldquo;<span class="qt">${esc(LEAVE_SENTENCE)}</span>&rdquo;<span class="fn">1</span></p>
+        <div class="spec-src"><span class="n">1</span><span><b>Leave Policy</b> &rsaquo; Annual leave</span></div></div>`;
+  }
+  function specimen() {
+    return `<div class="specimen" aria-hidden="true">${specimenFront()}
+      <div class="spec-card spec-back"><span class="eyebrow">Maria asked</span><p class="a-q">${esc(Q().salary)}</p><span class="stamp">Not in your documents</span></div></div>`;
+  }
+  function docTitle(a) {
+    const n = a.citations[0]?.number || 1;
+    return String(a.passages[n - 1]?.label || "documents").split(" > ")[0];
   }
   function storyContent() {
     const st = S.story, q = Q();
@@ -383,27 +444,30 @@
           <h2 class="headline" id="story-title">Answers you can <span class="hl-word">check</span>.</h2>
           <p class="lede">Staff ask the company's documents a question. Every answer has footnotes that open the exact sentence it quotes, and each person sees only what their role allows.</p>
           <ul class="hero-points"><li>${icon("check")}Footnotes open the source</li><li>${icon("check")}Says so when the documents don't</li><li>${icon("check")}HR text stays with HR</li><li>${icon("check")}Six steps, about a minute</li></ul>
-          <p class="ai-line">${icon(S.config?.live ? "spark" : "quote")}<span>${esc(aiLine())}</span></p>`,
+          <p class="ai-line">${icon(live() ? "spark" : "quote")}<span>${esc(aiLine())}</span></p>`,
         actions: `<button type="button" class="btn btn-primary" data-go="start">Start the demo${icon("arrow-right")}</button><button type="button" class="btn-link" data-go="free">Skip to free use</button>`,
         art: specimen(), target: "#story-actions .btn-primary" };
       case 1: {
         const a = byId(st.leave);
         if (!a) return { main: head(1, "A policy question.") + `<p class="story-text">Maria works in sales. She asks: <q>${esc(q.leave)}</q></p>` + waitLine(),
           actions: busy ? "" : primary("ask-leave", "Ask Maria's question"), target: "#story-actions .btn-primary" };
-        return { main: head(1, a.status === "answered" ? "Answered, with its source." : "Answered from the documents.") + `<p class="story-text">${isPhone()
-          ? "Tap footnote 1 to open the page it comes from." : "Footnote 1 opens the page it comes from."} The marked sentence is word for word from the ${esc(docTitle(a))}.</p>`,
+        const claude = a.written_by === "claude";
+        return { main: head(1, "Answered, with its source.") + `<p class="story-text">${isPhone()
+          ? "Tap footnote 1 to open the page it comes from." : "Footnote 1 opens the page it comes from."} ${claude
+          ? `Claude wrote the answer in plain words; the marked sentence in the ${esc(docTitle(a))} is the one it rests on.`
+          : `The marked sentence is word for word from the ${esc(docTitle(a))}.`}</p>`,
           actions: primary("to-2", "Next: in her own words"), target: `[data-card="${a.id}"] .fn`, ring: true };
       }
       case 2: {
         const a = byId(st.scanner);
-        if (!a) return { main: head(2, "Ask in your own words.") + `<p class="story-text">Maria asks: <q>${esc(q.scanner)}</q> The manual never says "covered" or "breaks".</p>` + waitLine(),
+        if (!a) return { main: head(2, "Ask in your own words.") + `<p class="story-text">Maria asks: <q>${esc(q.scanner)}</q> Too few of its words are in the manual for keyword search to answer it.</p>` + waitLine(),
           actions: busy ? "" : primary("ask-scanner", "Ask it"), target: "#story-actions .btn-primary" };
         if (a.status === "not_found") return { main: head(2, "Refused this time.") + `<p class="story-text">Nothing cleared the bar, so it said so instead of guessing.</p>`,
           actions: primary("to-3", "Next: who can see what"), target: `[data-card="${a.id}"] .stamp` };
         const page = a.passages[0]?.page;
         const alone = a.search.keywords_alone === false;
-        return { main: head(2, `Found by meaning${page ? `, on page ${page} of a PDF` : ""}.`) + `<p class="story-text">${alone ? "Keyword search alone found nothing for this question. " : ""}Comparing meanings found the warranty section of the ${esc(docTitle(a))}.</p>`,
-          actions: primary("to-3", "Next: who can see what"), target: alone ? `[data-card="${a.id}"] .tag.kw` : `[data-card="${a.id}"] .fn` };
+        return { main: head(2, `Found by meaning${page ? `, on page ${page} of a PDF` : ""}.`) + `<p class="story-text">${alone ? "Keyword search alone would have refused this question. " : ""}Comparing meanings found the warranty section of the ${esc(docTitle(a))}.</p>`,
+          actions: primary("to-3", "Next: who can see what"), target: alone ? `[data-card="${a.id}"] .kw-note` : `[data-card="${a.id}"] .fn` };
       }
       case 3: {
         const m = byId(st.salaryMaria), h = byId(st.salaryHana);
@@ -418,7 +482,7 @@
         const a = byId(st.draft);
         if (!a) return { main: head(4, "Catch a bad AI draft.") + `<p class="story-text">For this test we force the AI's draft to say 30 days of leave, and that unused days never expire. The policy says 25, and only 5 carry over.</p>` + waitLine(),
           actions: busy ? "" : primary("ask-draft", "Send the forced draft"), target: "#story-actions .btn-primary" };
-        return { main: head(4, "Held before anyone saw it.") + `<p class="story-text">Every sentence must cite a passage and add nothing its quote does not say. This draft failed, so the matching sentences are quoted instead.</p>`,
+        return { main: head(4, "Held before anyone saw it.") + `<p class="story-text">The AI's draft said 30 days; the policy says 25. It was blocked and the real sentence shown instead.</p>`,
           actions: primary("to-5", "Next: where it still misses"), target: `[data-card="${a.id}"] .held` };
       }
       case 5: {
@@ -426,33 +490,19 @@
         if (!a) return { main: head(5, "Where it still misses.") + `<p class="story-text">No document gives a number of sick days. Maria asks: <q>${esc(q.sick)}</q></p>` + waitLine(),
           actions: busy ? "" : primary("ask-sick", "Ask about sick days"), target: "#story-actions .btn-primary" };
         const miss = a.status !== "not_found";
-        return { main: head(5, miss ? "A near miss: it quotes annual leave." : "Refused this time.") + `<p class="story-text">${miss
-          ? "The source shows it is the annual leave sentence, not sick days." : "The AI saw that the passage does not answer it. Quoted answers give the annual leave sentence here."} On unseen test questions ${heldOut()}. It refuses about a third of unseen everyday questions and sometimes quotes a near miss. Check the source.</p>`,
-          actions: primary("to-6", "Next: cost and test results"), target: miss ? `[data-card="${a.id}"] .src` : `[data-card="${a.id}"] .stamp` };
+        return { main: head(5, miss ? "A near miss." : "Refused this time.") + `<p class="story-text">${miss
+          ? "The documents give no sick-day number, so it quoted the closest sentence: annual leave. The footnote makes that easy to spot."
+          : "Claude saw that the passage does not answer it. Quoted mode gives the annual leave sentence here: a near miss the footnote makes easy to spot."}</p>`,
+          actions: primary("to-6", "Next: what you'd get"), target: miss ? `[data-card="${a.id}"] .src` : `[data-card="${a.id}"] .stamp` };
       }
       case 6: return {
-        main: head(6, "What it costs, and how it was tested.") + `<p class="story-text">Three question sets, run by the product's own eval command on the same index as this demo. No restricted text appeared in any result.</p>`,
-        actions: primary("free", "Try it yourself") + `<button type="button" class="btn-link" data-go="replay">Replay the demo</button>`, target: ".report .cost-figure" };
+        main: head(6, "What you'd get on your documents.") + `<p class="story-text">Your version runs on your own policies and manuals.</p>`,
+        actions: primary("free", "Try it yourself") + `<button type="button" class="btn-link" data-go="replay">Replay the demo</button>`, target: ".report .takeaways" };
       default: return {
         main: `<div class="kicker">Free use</div><h2 class="story-title" id="story-title">Ask anything an employee would.</h2>
           <p class="story-text">Pick who you are, then ask, or try a suggestion. In this demo you pick who you are. In your version the role comes from your company sign-in.</p>`,
         actions: `<button type="button" class="btn-link" data-go="replay">Replay the demo</button>`, target: null };
     }
-  }
-  // The first screen shows what the story is about to do: an answer with its footnote, and a refusal.
-  // The quoted sentence is the Leave Policy's own (a test checks it is still in the document).
-  const LEAVE_SENTENCE = "Full-time employees receive 25 days of paid annual leave per calendar year, plus public holidays.";
-  function specimen() {
-    const q = Q();
-    return `<div class="specimen" aria-hidden="true">
-      <div class="spec-card spec-back"><span class="eyebrow">Maria asked</span><p class="a-q">${esc(q.salary)}</p><span class="stamp">Not in your documents</span></div>
-      <div class="spec-card spec-front"><span class="eyebrow">Maria asked</span><p class="a-q">${esc(q.leave)}</p>
-        <p class="a-body">&ldquo;<span class="qt">${esc(LEAVE_SENTENCE)}</span>&rdquo;<span class="fn">1</span></p>
-        <div class="spec-src"><span class="n">1</span><span><b>Leave Policy</b> &rsaquo; Annual leave</span></div></div></div>`;
-  }
-  function docTitle(a) {
-    const n = a.citations[0]?.number || 1;
-    return String(a.passages[n - 1]?.label || "documents").split(" > ")[0];
   }
   function renderStory() {
     const c = storyContent();
@@ -476,7 +526,8 @@
   function reveal(sel, block = "nearest") {
     const el = typeof sel === "string" ? document.querySelector(sel) : sel;
     if (!el || !el.getClientRects().length) return;
-    const top = isPhone() ? ($("#switch-row")?.offsetHeight || 0) + 8 : 12;
+    const sticky = !isPhone() && S.step === "free" && !$("#composer").hidden ? $("#composer").offsetHeight : 0;  // the sticky question box
+    const top = isPhone() ? ($("#switch-row")?.offsetHeight || 0) + 8 : 12 + sticky;
     const bottom = (isPhone() ? $("#story").offsetHeight : 0) + 12;
     el.style.setProperty("scroll-margin", `${top}px 0 ${bottom}px 0`);
     el.scrollIntoView({ block });
@@ -510,9 +561,9 @@
   async function go(what) {
     if (S.busy) return;
     const q = Q();
-    const run = async (key, question, p, extra) => {
+    const run = async (key, question, p, extra, meta) => {
       setPersona(p);
-      const a = await ask(question, p, extra);
+      const a = await ask(question, p, extra, meta);
       if (a) S.story[key] = a.id;
       save();
       await landed(a);
@@ -523,7 +574,7 @@
         S.answers = S.answers.filter((a) => a.step === "free"); S.story = {}; S.persona = "maria"; setStep(1); break;
       case "ask-leave": await run("leave", q.leave, "maria"); break;
       case "ask-scanner": await run("scanner", q.scanner, "maria"); break;
-      case "ask-salary-maria": await run("salaryMaria", q.salary, "maria"); break;
+      case "ask-salary-maria": await run("salaryMaria", q.salary, "maria", {}, { restricted: true }); break;
       case "ask-salary-hana": await run("salaryHana", q.salary, "hana"); break;
       case "ask-draft": await run("draft", q.leave, "maria", { simulate: "bad_draft" }); break;
       case "ask-sick": await run("sick", q.sick, "maria"); break;
@@ -547,11 +598,11 @@
     document.querySelectorAll(".switch-row button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pane === pane)));
     if (isPhone()) window.scrollTo(0, 0);
   }
-  function render() { renderStory(); renderAsker(); renderAnswers(); renderDoc(); }
+  function render() { renderStory(); renderAsker(); renderAnswers(); renderDoc(); measure(); }
 
   function autosize() { const t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight, 140) + "px"; }
-  async function freeAsk(question, p) {
-    const a = await ask(question, p);
+  async function freeAsk(question, p, meta = {}) {
+    const a = await ask(question, p, {}, meta);
     if (a) { $("#input").value = ""; autosize(); }
     await landed(a);
     if (a) reveal(`[data-card="${a.id}"]`, "start");
@@ -561,7 +612,7 @@
     document.addEventListener("pointerdown", () => { S.keyboard = false; }, true);
     $("#composer").addEventListener("submit", (e) => { e.preventDefault(); freeAsk($("#input").value, S.persona); });
     $("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); freeAsk($("#input").value, S.persona); } });
-    $("#input").addEventListener("input", autosize);
+    $("#input").addEventListener("input", () => { autosize(); measure(); });
     document.addEventListener("click", (e) => {
       const t = e.target.closest("button");
       if (!t || t.disabled) return;
@@ -572,9 +623,7 @@
       } else if (t.dataset.chip !== undefined) {
         const c = S.config.chips[+t.dataset.chip];
         setPersona(c.persona);
-        freeAsk(c.question, c.persona);
-      } else if (t.dataset.more) {
-        S.moreChips = !S.moreChips; renderAsker();
+        freeAsk(c.question, c.persona, { restricted: !!c.restricted });
       } else if (t.dataset.persona) {
         setPersona(t.dataset.persona); save();
       } else if (t.dataset.ai) {
@@ -586,7 +635,7 @@
     });
     $("#replay").addEventListener("click", () => go("replay"));
     let resizeTimer = null;
-    window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(measure, 80); });
+    window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { placeComposer(); renderDoc(); measure(); }, 80); });
   }
 
   async function init() {
@@ -597,10 +646,11 @@
       $("#story-main").innerHTML = `<h2 class="story-title" id="story-title">The demo server is not reachable.</h2><p class="story-text">Reload the page in a moment.</p>`;
       return;
     }
+    if (!S.config.live) S.ai = false;
     const saved = store.get(STORE_KEY);
     if (saved && Array.isArray(saved.answers)) {
       Object.assign(S, { step: saved.step ?? 0, persona: saved.persona || "maria", answers: saved.answers, next: saved.next || 1,
-        story: saved.story || {}, open: saved.open || null, ai: saved.ai !== false, deskNote: saved.deskNote || null });
+        story: saved.story || {}, open: saved.open || null, ai: S.config.live && saved.ai !== false, deskNote: saved.deskNote || null });
     }
     render();
     if (S.open) {
