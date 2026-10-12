@@ -4,7 +4,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any, Callable
 
-import httpx
+import httpx2  # the HTTP client the anthropic SDK (1.13) is built on
 
 USAGE = {"input_tokens": 1200, "output_tokens": 60}
 
@@ -42,10 +42,10 @@ def api_error(kind: str) -> BaseException:
     """The exception the anthropic SDK raises for each kind of failure."""
     import anthropic
 
-    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
 
-    def response(status: int) -> httpx.Response:
-        return httpx.Response(status, request=request)
+    def response(status: int) -> httpx2.Response:
+        return httpx2.Response(status, request=request)
 
     if kind == "budget":
         body = {"type": "error", "error": {"type": "rate_limit_error", "message": "enforced_spend_limit_reached"}}

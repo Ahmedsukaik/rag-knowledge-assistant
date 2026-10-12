@@ -2,7 +2,8 @@
 # requirements file next to the function, so the product's own requirements.txt (fastembed, the
 # MCP SDK, pypdf, uvicorn) stays out of the bundle. The embedding model runs on onnxruntime
 # directly (kb/onnx_embed.py), and numpy does the rest. python scripts/bundle_size.py reports
-# what this ships.
+# what this ships. No httpx: the demo does not use it, and anthropic brings its own HTTP client
+# (httpx2); httpx is only for the tests and the product's command line.
 fastapi>=0.115,<1
 pydantic>=2.7,<3
 numpy>=1.26,<3

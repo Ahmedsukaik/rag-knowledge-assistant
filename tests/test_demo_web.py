@@ -442,7 +442,7 @@ def test_vercel_ships_the_demo_and_leaves_the_rest_out():
     assert vercel["outputDirectory"] == "public"
     requirements = (ROOT / "api" / "requirements.txt").read_text(encoding="utf-8").lower()
     names = {re.split(r"[<>=\[ ]", line)[0] for line in requirements.splitlines() if line and not line.startswith("#")}
-    assert names == {"fastapi", "pydantic", "numpy", "onnxruntime", "anthropic"}  # httpx comes with anthropic
+    assert names == {"fastapi", "pydantic", "numpy", "onnxruntime", "anthropic"}  # no httpx: anthropic brings httpx2
     entry = (ROOT / "api" / "index.py").read_text(encoding="utf-8")
     assert "from kb.demo_web import create_app" in entry and "serve_static=False" in entry
 

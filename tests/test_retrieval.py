@@ -92,7 +92,8 @@ class FixedRetriever:
     name = "fixed"
 
     def __init__(self, store: Store):
-        self.store, self.calls = store, []
+        self.store = store
+        self.calls: list[tuple[str, frozenset[str], int]] = []
 
     def search(self, query, collections, k):
         self.calls.append((query, collections, k))
