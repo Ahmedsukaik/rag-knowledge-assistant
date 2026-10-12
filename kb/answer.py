@@ -20,10 +20,13 @@ Whatever the model returns is checked in code before anyone sees it (check_model
 * text without a citation may only connect or introduce cited statements: every word in it
   must be a connecting word ("and", "according to") or appear in a cited passage, and it may
   not add a number, a "not" or a "yes" that the cited text does not support;
-* a cited statement may not add a number or a "not" that its quote does not have, and may not
-  drop a "not" that the quote it rests on has;
-* most of the content words of every cited sentence (SUPPORT_SHARE) must appear in the
-  passages it cites or their titles, so an invented claim cannot ride along with a real citation;
+* a cited statement is compared with the sentences it cites: most of its content words
+  (SUPPORT_SHARE) must be there (or in one sentence right next to them, or the title); its
+  numbers, dates and weekdays, in digits or words, must be there too, each next to the same
+  words; it must agree on "not" with the closest sentence of the passage; labels ("Band D") and
+  words that widen a claim (any, always, optional, unlimited) must come from the cited sentences.
+  These compare words and numbers, not meaning: tests/test_source_check.py lists what still
+  passes. When a check fails the answer is withheld, the safe way to fail;
 * a citation of a sentence that addresses an AI ("ignore previous instructions") is refused.
 
 If any check fails, the model's text is withheld and the quoted passages are shown instead,
@@ -351,19 +354,29 @@ CONNECTIVES = frozenset(
     "according to the a an as per under in says say states state stated said this that these those document "
     "documents source sources passage passages policy".split()
 )
-NEGATIONS = frozenset("no not never none nobody nothing neither nor cannot without".split())
-NUMBER_WORDS = {"two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7", "eight": "8",
-                "nine": "9", "ten": "10", "eleven": "11", "twelve": "12", "fifteen": "15", "twenty": "20",
-                "thirty": "30", "forty": "40", "fifty": "50", "hundred": "100", "thousand": "1000", "million": "1000000"}
+NEGATIONS = frozenset("no not never none nobody nothing neither nor cannot".split())  # "without" states no "not"
+NUMBER_WORDS = {"zero": "0", "one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7",
+                "eight": "8", "nine": "9", "ten": "10", "eleven": "11", "twelve": "12", "dozen": "12", "fifteen": "15",
+                "twenty": "20", "thirty": "30", "forty": "40", "fifty": "50", "hundred": "100", "thousand": "1000",
+                "million": "1000000", "half": "0.5", "unlimited": "unlimited", "infinite": "unlimited"}
+# Dates and days count as numbers: a statement may not move a deadline from March to May.
+MONTHS = frozenset("january february march april may june july august september october november december".split())
+WEEKDAYS = frozenset("monday tuesday wednesday thursday friday saturday sunday".split())
+# Words that change how far a statement reaches. A cited statement may use one only if the
+# sentences it cites have it (or one of the same group): "approval is optional", "always reuse".
+SCOPE_WORDS = ({"always"}, {"any"}, {"optional"}, {"unlimited"})
 
 
 # A cited sentence must rest on what it cites: at least this share of its content words (as the
-# keyword search sees them: stopwords removed, stemmed, synonyms merged; connecting words not
-# counted) must appear in the cited passages or their titles. 0.8 keeps every answer the tests
-# accept, the eval answers restated as Claude cites them, and the realistic paraphrases in
-# tests/test_answer.py, while an invented sentence next to a real citation fails it.
+# keyword search sees them: stopwords removed, stemmed, synonyms merged; connecting words and
+# negations not counted) must appear in the sentences it cites or in their passages' titles and
+# sections. 0.8 keeps every answer the tests accept, the eval answers restated as Claude cites
+# them, and the legitimate rewordings in tests/test_source_check.py.
 SUPPORT_SHARE = 0.8
 _CONNECTIVE_TOKENS = frozenset(tokenize(" ".join(CONNECTIVES)))
+_NEGATION_TOKENS = frozenset(NEGATIONS) | {"aren", "isn", "don", "doesn", "didn", "won", "wasn", "weren", "hasn", "haven",
+                                           "hadn", "shouldn", "wouldn", "couldn", "mustn", "needn"}
+_WORD = re.compile(r"\d[\d,]*(?:\.\d+)?|[^\W\d_]+(?:'t)?")
 
 
 def _words(text: str) -> list[str]:
@@ -376,41 +389,127 @@ def _is_structural(text: str) -> bool:
     return all(word in CONNECTIVES for word in _words(body))
 
 
+def _number_at(words: list[str], i: int) -> str | None:
+    """The number words[i] stands for, if it is one: digits, a number word, a month or a weekday.
+    "may" counts as a month only next to a day number ("31 May"); "a week" counts as one week."""
+    w = words[i]
+    if w[0].isdigit():
+        return w.replace(",", "")
+    if w in NUMBER_WORDS:
+        return NUMBER_WORDS[w]
+    if w == "may":
+        near = [words[j] for j in (i - 1, i + 1) if 0 <= j < len(words)]
+        return "may" if any(x.isdigit() and len(x) <= 2 for x in near) else None
+    if w in MONTHS or w in WEEKDAYS:
+        return w
+    if w == "week" and i > 0 and words[i - 1] in ("a", "an"):
+        return "1"
+    return None
+
+
 def _numbers(text: str) -> set[str]:
-    found = {n.replace(",", "") for n in re.findall(r"\d[\d,]*(?:\.\d+)?", text)}
-    return found | {NUMBER_WORDS[w] for w in _words(text) if w in NUMBER_WORDS}
+    words = [m.group(0).lower() for m in _WORD.finditer(text)]
+    return {n for i in range(len(words)) if (n := _number_at(words, i)) is not None}
+
+
+def _number_spans(sentence: str) -> list[tuple[str, set[str]]]:
+    """Each number in a sentence with the content words that follow it, up to the next number."""
+    words = [m.group(0).lower() for m in _WORD.finditer(sentence)]
+    spans: list[tuple[str, set[str]]] = []
+    for i, w in enumerate(words):
+        n = _number_at(words, i)
+        if n is not None:
+            spans.append((n, set()))
+        elif spans:
+            spans[-1][1].update(t for t in tokenize(w) if t not in _CONNECTIVE_TOKENS and t not in _NEGATION_TOKENS)
+    return spans
 
 
 def _negated(text: str) -> bool:
     return any(w in NEGATIONS or w.endswith("n't") for w in _words(text))
 
 
-def support_share(sentence: str, chunks: list[Chunk]) -> float:
-    """The share of a sentence's content words found in these passages, their titles or sections.
-    A word also counts when it shares its first five letters with one there (approval, approved)."""
-    words = [w for w in tokenize(sentence) if w not in _CONNECTIVE_TOKENS]
+def _content(text: str) -> set[str]:
+    """The words a statement rests on: stemmed, without stopwords, connecting words or negations."""
+    return {w for w in tokenize(text) if w not in _CONNECTIVE_TOKENS and w not in _NEGATION_TOKENS}
+
+
+def _supported(word: str, support: set[str], stems: set[str]) -> bool:
+    if word in support or (len(word) >= 5 and word[:5] in stems):  # approval, approved
+        return True
+    return len(word) >= 3 and any((s.startswith(word) or (len(s) >= 4 and word.startswith(s))) and abs(len(s) - len(word)) <= 2
+                                  for s in support)  # use and used, timer and time
+
+
+def support_share(sentence: str, chunks: list[Chunk], quotes: list[str] | None = None) -> float:
+    """The share of a sentence's content words found in the cited sentences (`quotes`), or in the
+    whole passages when no quotes are given, and in the passages' titles and sections."""
+    words = [w for w in tokenize(sentence) if w not in _CONNECTIVE_TOKENS and w not in _NEGATION_TOKENS]
     if not words:
         return 1.0
-    support = set(tokenize(" ".join(f"{c.title} {c.section or ''} {c.text}" for c in chunks)))
+    body = " ".join(quotes) if quotes is not None else " ".join(c.text for c in chunks)
+    support = set(tokenize(body + " " + " ".join(f"{c.title} {c.section or ''}" for c in chunks)))
     stems = {w[:5] for w in support if len(w) >= 5}
-    found = sum(w in support or (len(w) >= 5 and w[:5] in stems) for w in words)
-    return found / len(words)
+    return sum(_supported(w, support, stems) for w in words) / len(words)
+
+
+def _neighbours(quotes: list[str], chunks: list[Chunk]) -> list[str]:
+    """The passage sentences right before and after the cited ones (not cited themselves)."""
+    cited = [squash(q) for q in quotes]
+    out: list[str] = []
+    for chunk in chunks:
+        sentences = split_sentences(chunk.text)
+        hit = [i for i, s in enumerate(sentences) if any(squash(s) in q for q in cited)]
+        for i in hit:
+            out += [sentences[j] for j in (i - 1, i + 1) if 0 <= j < len(sentences) and j not in hit]
+    return list(dict.fromkeys(out))
 
 
 def _support_problem(text: str, quotes: list[str], chunks: list[Chunk]) -> str | None:
-    """Why a cited block says more than its sources, sentence by sentence, or None."""
+    """Why a cited block says more than the sentences it cites, sentence by sentence, or None.
+
+    These checks compare words and numbers. They catch an invented claim set next to a real
+    citation in many forms, and when one fires the answer is withheld and the quotes are shown:
+    a wrong refusal is the safe way to fail. They do not understand meaning, so a statement made
+    only of its source's own words can still say something the source does not."""
     quoted = [s for q in quotes for s in split_sentences(q)] or quotes
-    quoted_words = [set(tokenize(q)) for q in quoted]
+    passage = [s for c in chunks for s in split_sentences(c.text)]
+    quoted_text = " ".join(quotes)
+    quoted_words = set(_words(quoted_text))
+    quoted_letters = set(re.findall(r"(?<![\w-])[B-HJ-Z](?![\w-])", quoted_text))
+    spans = [span for q in quoted for span in _number_spans(q)]
+    units = [quotes] + [[s] for s in _neighbours(quotes, chunks)]
     for sentence in split_sentences(text) or [text]:
-        if support_share(sentence, chunks) < SUPPORT_SHARE:
-            return "a cited statement says things its source does not"
-        words = set(tokenize(sentence)) - _CONNECTIVE_TOKENS
-        overlap = [len(words & q) for q in quoted_words]
-        best = max(overlap, default=0)
-        # The quoted sentence it rests on (the one sharing most words) must agree on "not":
-        # "Claims of any amount are approved automatically" next to "No claim is approved automatically".
-        if best and not any(_negated(q) == _negated(sentence) for q, n in zip(quoted, overlap, strict=True) if n == best):
-            return "a cited statement drops or adds a \"not\" compared with the sentence it cites"
+        # Each clause rests on the sentences it cites (with their titles and sections), or on one
+        # sentence right next to them (a clause the citation did not quite cover), never on words
+        # gathered from several.
+        for clause in [c for c in re.split(r";", sentence) if c.strip()]:
+            if max(support_share(clause, chunks if unit is quotes else [], unit) for unit in units) < SUPPORT_SHARE:
+                return "a cited statement says things its source does not"
+        words = _content(sentence)
+        # "not": the closest sentence of the whole passage must agree with it (never, not and
+        # no are the same "not"), and a passage sentence whose words it repeats must too:
+        # "Claims of any amount are approved automatically" against "No claim is approved automatically".
+        overlap = [(len(words & _content(s)), s) for s in passage]
+        best = max((n for n, _ in overlap), default=0)
+        if best and not any(_negated(s) == _negated(sentence) for n, s in overlap if n == best):
+            return "a cited statement drops or adds a \"not\" compared with its source"
+        for s in passage:
+            core = _content(s)
+            if _negated(s) != _negated(sentence) and len(core) >= (2 if _negated(s) else 3) and core <= words:
+                return "a cited statement drops or adds a \"not\" compared with its source"
+        # Numbers: only those of the sentences it cites, each tied to the same words as there.
+        for n, after in _number_spans(sentence):
+            own = set().union(*[w for m, w in spans if m == n])
+            other = set().union(*[w for m, w in spans if m != n])
+            if (after & other) - own:
+                return "a cited statement ties a number to words its source ties to another number"
+        # Labels and words that change the reach of a claim must come from the cited sentences.
+        if set(re.findall(r"(?<![\w-])[B-HJ-Z](?![\w-])", sentence)) - quoted_letters:
+            return "a cited statement names a label its source does not"
+        said = set(_words(sentence))
+        if any(said & group and not quoted_words & group for group in SCOPE_WORDS):
+            return "a cited statement widens what its source says (any, always, optional, unlimited)"
     return None
 
 
@@ -454,9 +553,8 @@ def check_model_answer(response: Any, question: str, hits: list[Hit],
                 numbers.append(n)
             quotes.append(str(_get(c, "cited_text")).strip())
             citations.append(Citation(n, hits[n - 1].chunk.chunk_id, hits[n - 1].chunk.label(), quotes[-1]))
-        if quotes:  # the statement may not say more than its quote: no new number, no added "not"
-            passages = " ".join(hits[n - 1].chunk.text for n in numbers)
-            if _numbers(text) - _numbers(" ".join(quotes)) - _numbers(passages):
+        if quotes:  # the statement may not say more than its quotes: no new number, no added "not"
+            if _numbers(text) - _numbers(" ".join(quotes)):
                 problems.append("a cited statement has a number that its source does not")
             if _negated(text) and not _negated(" ".join(quotes)):
                 problems.append("a cited statement says \"not\" where its quote does not")

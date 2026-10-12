@@ -4,6 +4,6 @@ pytest>=8,<10
 fpdf2>=2.7,<3          # samples/make_pdfs.py and the PDF tests
 ruff>=0.6,<1
 mypy>=1.10,<2
-# The 24 browser tests, docs/make_screenshots.py and docs/make_media.py drive an installed Chrome or Edge
+# The 25 browser tests, docs/make_screenshots.py and docs/make_media.py drive an installed Chrome or Edge
 # (no browser download). Without Playwright or a browser, those eight tests are skipped.
 playwright>=1.45,<2
