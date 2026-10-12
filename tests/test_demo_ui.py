@@ -146,6 +146,7 @@ def test_the_six_step_story_with_each_target_on_screen(browser, site, width, hei
     ui.tap(ui.button("Send the forced draft"))
     ui.title("Held before anyone saw it.")
     ui.on_screen(page.locator(".held"))
+    ui.on_screen(page.locator(".card .instead"))  # the replacement quote too
     assert "30 days" in page.locator(".held .draft").inner_text()
     assert "A cited statement has a number that its source does not." in page.locator(".held").inner_text()
     ui.tap(page.get_by_role("button", name="Next: where it still misses"))
@@ -381,4 +382,22 @@ def test_a_phone_shows_a_preview_first_and_asks_from_the_sheet(browser, site):
     ui.on_screen(page.locator("#story #input"))  # the question box sits in the bottom sheet
     assert page.locator("#input").get_attribute("placeholder") == "Ask a question..."
     assert page.locator("#repo").inner_text().strip() == "Code"
+    ui.close()
+
+
+def test_free_use_keeps_people_and_box_in_view_and_a_reload_keeps_the_refusal(browser, site):
+    ui = Page(browser, site, 1280, 720)
+    page = ui.page
+    page.get_by_role("button", name="Skip to free use").click()
+    for question in ("how much holiday do I get each year", "can I bring my cat to work"):
+        page.locator("#input").fill(question)
+        page.locator("#input").press("Enter")
+        page.locator(".card.answer .a-q", has_text=question).wait_for()
+        page.wait_for_timeout(150)
+    ui.on_screen(page.locator(".persona", has_text="Hana"))  # pinned with the question box
+    ui.on_screen(page.locator("#input"))
+    page.locator("#desk .stamp").wait_for()
+    page.reload()
+    page.locator(".story-title", has_text="Ask anything").wait_for()
+    page.locator("#desk .stamp").wait_for()  # the refusal note was saved
     ui.close()

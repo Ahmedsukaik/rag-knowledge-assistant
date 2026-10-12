@@ -97,6 +97,7 @@
     render();
     if (!isPhone() && a.citations.length) await openSource(a.id, a.citations[0].number, { auto: true });
     requestAnimationFrame(revealTarget);
+    save();  // the open source and the refusal note survive a reload
   }
 
   // ------------------------------------------------------------------ the source document
@@ -300,7 +301,7 @@
       body = `<div class="held" role="note"><div class="held-head">${icon("shield")}Held: the AI's draft failed the source check</div>
         <p class="held-sub">Nobody saw this draft. It is shown here only because this is a demo; in your version it goes to the audit log for the admin.</p>${draft}
         <ul class="problems">${(a.problems || []).map((x) => `<li>${icon("alert")}<span>${esc(x)}</span></li>`).join("")}</ul></div>
-        <p class="eyebrow shown-instead">Shown instead, quoted word for word</p><div class="a-body">${answerBody(a)}</div>`;
+        <div class="instead"><p class="eyebrow shown-instead">Shown instead, quoted word for word</p><div class="a-body">${answerBody(a)}</div></div>`;
     } else {
       body = `<div class="a-body">${answerBody(a)}</div>`;
     }
@@ -378,11 +379,8 @@
   function placeComposer() {
     const composer = $("#composer");
     const inSheet = isPhone() && S.step === "free";
-    const home = inSheet ? $("#story") : $("#ask-pane");
-    if (composer.parentElement !== home) {
-      if (inSheet) $("#story").appendChild(composer);
-      else $("#ask-pane").insertBefore(composer, $("#chips"));
-    }
+    const home = inSheet ? $("#story") : $("#ask-top");
+    if (composer.parentElement !== home) home.appendChild(composer);
     $("#input").placeholder = isPhone() ? "Ask a question..." : "Ask about leave, expenses, IT, the office...";
   }
   function renderAsker() {
@@ -483,7 +481,7 @@
         if (!a) return { main: head(4, "Catch a bad AI draft.") + `<p class="story-text">For this test we force the AI's draft to say 30 days of leave, and that unused days never expire. The policy says 25, and only 5 carry over.</p>` + waitLine(),
           actions: busy ? "" : primary("ask-draft", "Send the forced draft"), target: "#story-actions .btn-primary" };
         return { main: head(4, "Held before anyone saw it.") + `<p class="story-text">The AI's draft said 30 days; the policy says 25. It was blocked and the real sentence shown instead.</p>`,
-          actions: primary("to-5", "Next: where it still misses"), target: `[data-card="${a.id}"] .held` };
+          actions: primary("to-5", "Next: where it still misses"), target: `[data-card="${a.id}"] .held`, also: `[data-card="${a.id}"] .instead` };
       }
       case 5: {
         const a = byId(st.sick);
@@ -526,7 +524,7 @@
   function reveal(sel, block = "nearest") {
     const el = typeof sel === "string" ? document.querySelector(sel) : sel;
     if (!el || !el.getClientRects().length) return;
-    const sticky = !isPhone() && S.step === "free" && !$("#composer").hidden ? $("#composer").offsetHeight : 0;  // the sticky question box
+    const sticky = !isPhone() && S.step === "free" ? $("#ask-top").offsetHeight : 0;  // the pinned people and question box
     const top = isPhone() ? ($("#switch-row")?.offsetHeight || 0) + 8 : 12 + sticky;
     const bottom = (isPhone() ? $("#story").offsetHeight : 0) + 12;
     el.style.setProperty("scroll-margin", `${top}px 0 ${bottom}px 0`);
@@ -539,7 +537,9 @@
     const el = document.querySelector(c.target);
     if (!el) return;
     if (c.ring && !el.matches(".btn")) el.classList.add("ring");
-    reveal(el);
+    const also = c.also && document.querySelector(c.also);
+    reveal(also || el);  // the lower one first, then the target: both end up on screen when they fit
+    if (also) reveal(el);
   }
   function setStep(n) {
     const before = S.step;

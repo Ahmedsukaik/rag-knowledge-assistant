@@ -170,7 +170,7 @@ body[data-step="0"] .workspace { opacity: .5; filter: saturate(.7); pointer-even
 
 /* the question box (free use) */
 .composer { margin-bottom: 12px; }
-.ask-pane > .composer { position: sticky; top: -18px; z-index: 5; margin: -10px 0 12px; padding: 10px 0 6px; background: var(--desk); }
+body.free .ask-top { position: sticky; top: -18px; z-index: 5; margin: -10px 0 0; padding: 10px 0 4px; background: var(--desk); }
 .composer-box {
   display: flex; gap: 8px; align-items: flex-end; padding: 6px; border-radius: 12px;
   border: 1px solid var(--rule-strong); background: var(--paper);
@@ -474,7 +474,12 @@ mark.hl.active { animation: sweep 750ms .05s cubic-bezier(.3, .7, .2, 1) both; s
   .story .composer-meta:empty, .story .composer-meta:not(:has(.seg, .keywords-only)) { display: none; }
   body[data-step="0"] .workspace { opacity: 1; filter: none; }
   body[data-step="6"] .switch-row { display: none; }
-  .ask-pane > .composer { position: static; margin: 0 0 12px; padding: 0; }
+  body.free .ask-top { position: static; margin: 0; padding: 0; }
+  .held { padding: 10px 12px; }
+  .held-sub { font-size: 12.5px; margin-bottom: 6px; }
+  .draft { font-size: 15.5px; }
+  .problems li { font-size: 13px; }
+  .instead .a-body { font-size: 16px; }
   .btn-ghost { padding: 0 10px; }
   .phone-only { display: block; }
   .switch-row {
