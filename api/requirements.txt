@@ -1,0 +1,11 @@
+# What the Vercel function needs: the web demo only (kb/demo_web.py). Vercel installs the
+# requirements file next to the function, so the product's own requirements.txt (fastembed, the
+# MCP SDK, pypdf, uvicorn) stays out of the bundle. The embedding model runs on onnxruntime
+# directly (kb/onnx_embed.py), and numpy does the rest. python scripts/bundle_size.py reports
+# what this ships.
+fastapi>=0.115,<1
+pydantic>=2.7,<3
+numpy>=1.26,<3
+onnxruntime>=1.20,<2
+anthropic>=1.0,<2
+httpx>=0.27,<1
