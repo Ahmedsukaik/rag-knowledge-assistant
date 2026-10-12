@@ -335,7 +335,7 @@ def test_plan_b_searches_typed_questions_by_keywords_and_says_so(keywords_index)
     assert typed["search"]["keywords_alone"] is None and typed["status"] == "answered"
     story = ask(client, STORY["scanner"])  # stored vectors: still found by meaning
     assert story["search"]["by"] == "meaning" and story["search"]["keywords_alone"] is False
-    assert client.post("/api/warm").json()["meaning_model"] == "off"
+    assert client.post("/api/warm", json={}).json()["meaning_model"] == "off"
     assert keywords_index._model is None
 
 
@@ -355,7 +355,7 @@ def test_without_the_model_files_typed_questions_use_keywords(tmp_path):
 
 
 def test_warm_loads_the_meaning_model(client):
-    assert client.post("/api/warm").json()["meaning_model"] == "ready"
+    assert client.post("/api/warm", json={}).json()["meaning_model"] == "ready"
     typed = ask(client, "how much holiday do I get each year?")
     assert typed["search"]["by"] == "meaning" and typed["status"] == "answered"
 
@@ -594,3 +594,53 @@ def test_the_question_vector_cache_is_safe_under_threads():
     for t in threads:
         t.join()
     assert errors == []
+
+
+# ------------------------------------------------------------------ requests from other sites
+@pytest.mark.parametrize("path", ["/api/ask", "/api/warm"])
+@pytest.mark.parametrize("content_type", [None, "text/plain", "application/x-www-form-urlencoded", "multipart/form-data; boundary=x"])
+def test_api_posts_that_are_not_json_are_refused(client, path, content_type):
+    headers = {"Content-Type": content_type} if content_type else {}
+    res = client.post(path, content=json.dumps({"question": STORY["leave"], "persona": "maria"}).encode(), headers=headers)
+    assert res.status_code == 415 and res.json()["error"] == "request" and len(res.json()["message"]) < 80
+    for name, value in SECURITY_HEADERS.items():  # a refusal gets the same headers as every other response
+        assert res.headers[name] == value
+    assert res.headers["cache-control"] == "no-store"
+
+
+@pytest.mark.parametrize("path", ["/api/ask", "/api/warm"])
+def test_api_posts_marked_cross_site_by_the_browser_are_refused(client, path):
+    res = client.post(path, json={"question": STORY["leave"], "persona": "maria"}, headers={"Sec-Fetch-Site": "cross-site"})
+    assert res.status_code == 403 and res.json()["error"] == "forbidden"
+    assert client.post(path, content=b"{}", headers={"Sec-Fetch-Site": "cross-site", "Content-Type": "text/plain"}).status_code == 403
+
+
+@pytest.mark.parametrize("fetch_site", [None, "same-origin", "same-site", "none"])
+def test_the_page_own_json_posts_still_work(client, fetch_site):
+    headers = {"Content-Type": "application/json; charset=utf-8"} | ({"Sec-Fetch-Site": fetch_site} if fetch_site else {})
+    assert client.post("/api/warm", content=b"{}", headers=headers).status_code == 200
+    body = json.dumps({"question": STORY["leave"], "persona": "maria"}).encode()
+    res = client.post("/api/ask", content=body, headers=headers)
+    assert res.status_code == 200 and res.json()["status"] == "answered"
+    assert client.get("/api/config", headers={"Sec-Fetch-Site": "cross-site"}).status_code == 200  # reading is not refused
+
+
+def test_a_refused_request_reaches_neither_claude_nor_the_limits(index, monkeypatch):
+    monkeypatch.setattr("kb.demo_web.PER_VISITOR_REQUESTS", (1, 600))
+    fake = FakeAnthropic()
+    client = TestClient(create_app(index, client=fake))
+    body = {"question": STORY["leave"], "persona": "maria"}
+    assert client.post("/api/ask", json=body, headers={"Sec-Fetch-Site": "cross-site"}).status_code == 403
+    assert client.post("/api/ask", content=json.dumps(body), headers={"Content-Type": "text/plain"}).status_code == 415
+    assert fake.requests == []
+    res = client.post("/api/ask", json=body)  # the one allowed request was not used up
+    assert res.status_code == 200 and res.json()["written_by"] == "claude" and len(fake.requests) == 1
+
+
+def test_the_page_sends_every_post_as_json():
+    script = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
+    [helper] = re.findall(r"async function api\(method, path, body\) \{\n(.*?)\n", script)
+    assert 'const send = method !== "GET"' in helper
+    [call] = re.findall(r"const res = await fetch\(path, (.*?)\);", script)
+    assert '"Content-Type": "application/json"' in call and "JSON.stringify(body || {})" in call
+    assert "fetch(" not in script.replace("await fetch(path,", "")  # every request goes through api()

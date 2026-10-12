@@ -8,6 +8,9 @@
     POST /api/warm       loads the meaning model while the visitor reads the first screen
     GET  /healthz
 
+Every POST must be JSON (Content-Type: application/json, else 415) and is refused with 403 when
+the browser marks it as sent from another site (Sec-Fetch-Site: cross-site).
+
 It is this product's own KnowledgeBase (access rules, thresholds, quoting, the source check)
 over a prebuilt, read-only copy of the sample documents (demo_index.py). The server keeps
 nothing between requests and writes nothing to disk; each answer carries its own audit entries.
@@ -421,6 +424,19 @@ def visitor_key(address: str) -> str:
     return str(ip.ipv4_mapped or ip) if isinstance(ip, ipaddress.IPv6Address) else str(ip)
 
 
+def cross_site_refusal(request: Request) -> JSONResponse | None:
+    """Every POST to the API must be JSON sent by the demo page itself. A form or script on another
+    site can only send JSON after the browser asks this server first (and it never says yes), and
+    browsers mark requests from another site with Sec-Fetch-Site. None lets the request through."""
+    if request.method in ("GET", "HEAD", "OPTIONS") or not request.url.path.startswith("/api/"):
+        return None
+    if request.headers.get("sec-fetch-site", "").strip().lower() == "cross-site":
+        return JSONResponse({"error": "forbidden", "message": "Requests from other sites are not accepted."}, status_code=403)
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+        return JSONResponse({"error": "request", "message": "Send the request as JSON."}, status_code=415)
+    return None
+
+
 def _no_constants(name: str) -> Any:
     raise ValueError(f"{name} is not allowed")
 
@@ -481,6 +497,11 @@ def create_app(index: DemoIndex | None = None, client: Any = "env", serve_static
         return data
 
     @app.middleware("http")
+    async def same_site_json_only(request: Request, call_next: Any) -> Any:
+        refused = cross_site_refusal(request)
+        return refused if refused is not None else await call_next(request)
+
+    @app.middleware("http")  # added last, so it runs first and also covers the refusals above
     async def headers(request: Request, call_next: Any) -> Any:
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():

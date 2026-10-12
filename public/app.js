@@ -45,7 +45,8 @@
     announceTimer = setTimeout(() => { el.textContent = msg; }, 60);
   }
   async function api(method, path, body) {
-    const res = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    const send = method !== "GET";  // the server takes JSON posts only
+    const res = await fetch(path, { method, headers: send ? { "Content-Type": "application/json" } : {}, body: send ? JSON.stringify(body || {}) : undefined });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { const err = new Error(data.message || "Something went wrong. Try again."); err.status = res.status; throw err; }
     return data;
