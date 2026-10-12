@@ -8,6 +8,7 @@
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const STEPS = 6;
+  const STORE_KEY = "rag-demo-v1";  // a new version of the page starts fresh instead of reading an old shape
   const COLL = { general: "General", hr: "HR", finance: "Finance" };
   const KIND = { markdown: "Markdown", text: "Text file", pdf: "PDF" };
   const S = {
@@ -29,7 +30,7 @@
     set(k, v) { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: fine */ } },
   };
   function save() {
-    store.set("rag-demo", { step: S.step, persona: S.persona, answers: S.answers.slice(0, 12), next: S.next, story: S.story,
+    store.set(STORE_KEY, { step: S.step, persona: S.persona, answers: S.answers.slice(0, 12), next: S.next, story: S.story,
       open: S.open, ai: S.ai, deskNote: S.deskNote });
   }
 
@@ -209,7 +210,7 @@
     return numbers.map((n) => {
       const p = a.passages[n - 1];
       const current = S.open && S.open.id === a.id && S.open.n === n;
-      return `<button type="button" class="fn" data-open="${a.id}:${n}" aria-label="Source ${n}: ${esc(p ? p.label : "")}"${current ? ' aria-current="true"' : ""}>${n}</button>`;
+      return `<button type="button" class="fn" data-open="${a.id}:${n}" aria-label="Source ${n}: ${esc(p ? p.label.replace(/ > /g, ", ") : "")}"${current ? ' aria-current="true"' : ""}>${n}</button>`;
     }).join("");
   }
   function answerBody(a) {
@@ -371,7 +372,7 @@
   function heldOut() {
     const e = S.config?.eval || {};
     const one = e.heldout, two = e.heldout_v2;
-    return one && two ? `it answered ${one.answered} of ${one.answerable} and ${two.answered} of ${two.answerable}` : "it answered about two thirds";
+    return one && two ? `the documents do answer, it answered ${one.answered} of ${one.answerable} and ${two.answered} of ${two.answerable}` : "the documents do answer, it answered about two thirds";
   }
   function storyContent() {
     const st = S.story, q = Q();
@@ -426,11 +427,11 @@
           actions: busy ? "" : primary("ask-sick", "Ask about sick days"), target: "#story-actions .btn-primary" };
         const miss = a.status !== "not_found";
         return { main: head(5, miss ? "A near miss: it quotes annual leave." : "Refused this time.") + `<p class="story-text">${miss
-          ? "The source shows it is the annual leave sentence, not sick days." : "The AI saw that the passage does not answer it. Quoted answers give the annual leave sentence here."} It refuses about a third of unseen everyday questions and sometimes quotes a near miss. Check the source.</p>`,
+          ? "The source shows it is the annual leave sentence, not sick days." : "The AI saw that the passage does not answer it. Quoted answers give the annual leave sentence here."} On unseen test questions ${heldOut()}. It refuses about a third of unseen everyday questions and sometimes quotes a near miss. Check the source.</p>`,
           actions: primary("to-6", "Next: cost and test results"), target: miss ? `[data-card="${a.id}"] .src` : `[data-card="${a.id}"] .stamp` };
       }
       case 6: return {
-        main: head(6, "What it costs, and how it was tested.") + `<p class="story-text">On new test questions the documents do answer, ${heldOut()}. No restricted text appeared in any result.</p>`,
+        main: head(6, "What it costs, and how it was tested.") + `<p class="story-text">Three question sets, run by the product's own eval command on the same index as this demo. No restricted text appeared in any result.</p>`,
         actions: primary("free", "Try it yourself") + `<button type="button" class="btn-link" data-go="replay">Replay the demo</button>`, target: ".report .cost-figure" };
       default: return {
         main: `<div class="kicker">Free use</div><h2 class="story-title" id="story-title">Ask anything an employee would.</h2>
@@ -592,8 +593,11 @@
     wire();
     try {
       S.config = await api("GET", "/api/config");
-    } catch { toast("The demo server is not reachable. Try again in a moment."); return; }
-    const saved = store.get("rag-demo");
+    } catch {
+      $("#story-main").innerHTML = `<h2 class="story-title" id="story-title">The demo server is not reachable.</h2><p class="story-text">Reload the page in a moment.</p>`;
+      return;
+    }
+    const saved = store.get(STORE_KEY);
     if (saved && Array.isArray(saved.answers)) {
       Object.assign(S, { step: saved.step ?? 0, persona: saved.persona || "maria", answers: saved.answers, next: saved.next || 1,
         story: saved.story || {}, open: saved.open || null, ai: saved.ai !== false, deskNote: saved.deskNote || null });

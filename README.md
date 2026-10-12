@@ -75,7 +75,8 @@ staff role), Hana (HR) or Farid (finance). It is built for Vercel (`api/index.py
    leave and that unused days never expire. The source check withholds it, and the matching
    sentences are quoted instead. This step makes no AI call.
 5. **Where it still misses.** "How many paid sick days am I entitled to per year?" gets the
-   annual leave sentence: a near miss, which the source makes easy to spot.
+   annual leave sentence: a near miss, which the source makes easy to spot. On unseen test
+   questions the documents do answer, it answered 14 of 21 and 10 of 16.
 6. **Cost and test results.** The measured cost of the run, and the numbers from the three
    question sets.
 

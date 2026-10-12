@@ -152,7 +152,7 @@ def test_the_six_step_story_with_each_target_on_screen(browser, site, width, hei
     ui.tap(ui.button("Ask about sick days"))
     ui.title("A near miss: it quotes annual leave.")
     ui.on_screen(ui.card("Maria").locator(".src").first)
-    assert "Check the source." in page.locator("#story").inner_text()
+    assert "Check the source." in page.locator("#story").inner_text() and "14 of 21 and 10 of 16" in page.locator("#story").inner_text()
     ui.tap(page.get_by_role("button", name="Next: cost and test results"))
 
     ui.title("What it costs, and how it was tested.")                      # 6

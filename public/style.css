@@ -22,6 +22,7 @@ button, input, textarea { font: inherit; color: inherit; }
 a { color: var(--link); }
 :focus { outline: none; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.card :focus-visible, .page :focus-visible, .composer-box :focus-visible { outline-color: #1E3A8A; }  /* paper stays white in dark mode */
 
 /* ---------------------------------------------------------------- buttons */
 .btn {
