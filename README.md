@@ -187,7 +187,7 @@ environment variables.
 | The model without fastembed | `pytest tests/test_onnx_embed.py` | token ids identical on 352 texts; cosine similarity at least 0.9999 on every passage, sentence and question |
 | The story in a browser | `pytest tests/test_demo_ui.py`, Chrome at 1440x900, 1280x720, 390x844 and 360x640 | 17 tests pass; at every step the footnote, stamp, note or card it points at is fully on screen |
 | Claude Haiku 5.5 answers | a simulated API, and the real SDK against a local fake server | marked as written by Claude, priced from the token counts; spend limit, rate limit, key, timeout and outage fall back to quoted answers |
-| **Claude Haiku 5.5 live, on the story and the three sets** | the deployed demo with its key | **Not run yet: needs the demo's AI key.** |
+| **Claude Haiku 5.5 live, on the story and the three sets** | the deployed demo with its key | Spot check only, 12 Oct 2026: questions answered by Claude on the live demo, citations checked, about $0.0002 each. The full run on the story and the three sets is not done yet. |
 
 ---
 
@@ -630,7 +630,7 @@ Known limits, all visible in the held-out evaluation:
 
 The usual next steps, not built here: a reranker (a second, slower model that reads the
 question and each candidate passage together) for the answer/refuse decision, or Claude mode,
-which is told to reply `NOT_IN_DOCUMENTS` when the passages do not answer (not run live).
+which is told to reply `NOT_IN_DOCUMENTS` when the passages do not answer (spot checked live on the demo; the full sets not run live yet).
 
 One keyword-only change was measured and left off: limiting the weight of question words that
 appear in no document (`unseen_cap` in `kb/retrieval.py`).
