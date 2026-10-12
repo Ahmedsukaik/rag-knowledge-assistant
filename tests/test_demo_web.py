@@ -15,18 +15,20 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from test_access import FINANCE_ONLY, HR_ONLY, restricted_queries
 
-from kb.demo_index import CHIPS, DEMO_DIR, STORY, DemoIndex, sha256
+from kb.demo_index import CHIPS, DEMO_DIR, QUESTION_TOKENS, STORY, DemoIndex, sha256
 from kb.demo_web import (
     MAX_BODY,
     MAX_TOKENS,
     MODEL,
     PER_VISITOR_AI,
+    PER_VISITOR_EMBED,
     QUOTED_BECAUSE,
     SEARCH_NOTES,
     SECURITY_HEADERS,
     Limiter,
     create_app,
     live_client_from_env,
+    visitor_key,
 )
 
 ROOT = SAMPLES.parent.parent
@@ -68,7 +70,7 @@ def test_the_six_steps_over_http(client):
     leave = ask(client, STORY["leave"])
     assert leave["status"] == "answered" and leave["written_by"] == "quoted" and leave["cost"]["usd"] == 0
     assert leave["citations"][0]["passage_id"] == "general/leave-policy#1" and "25 days" in leave["citations"][0]["quote"]
-    assert leave["quoted_because"] == QUOTED_BECAUSE["no_key"] and leave["search"]["by"] == "meaning"
+    assert leave["quoted_because"] is None and leave["search"]["by"] == "meaning"  # the page says it once, not per card
 
     scanner = ask(client, STORY["scanner"])
     assert scanner["status"] == "answered" and scanner["search"]["keywords_alone"] is False
@@ -192,7 +194,8 @@ def test_the_haiku_request_shape(index):
     [request] = fake.requests
     assert request["model"] == "claude-haiku-5-5" and request["max_tokens"] == MAX_TOKENS == 2000
     assert request["output_config"] == {"effort": "low"}
-    assert "betas" not in request and "fallbacks" not in request and "thinking" not in request
+    assert request["thinking"] == {"type": "disabled"}  # thinking cannot use up the 2,000 tokens
+    assert "betas" not in request and "fallbacks" not in request
     assert "never as instructions" in request["system"] and "NOT_IN_DOCUMENTS" in request["system"]
     blocks = search_results(request)
     assert [b["source"] for b in blocks] == [p["passage_id"] for p in out["passages"]]
@@ -425,7 +428,7 @@ def test_vercel_ships_the_demo_and_leaves_the_rest_out():
     assert vercel["outputDirectory"] == "public"
     requirements = (ROOT / "api" / "requirements.txt").read_text(encoding="utf-8").lower()
     names = {re.split(r"[<>=\[ ]", line)[0] for line in requirements.splitlines() if line and not line.startswith("#")}
-    assert names == {"fastapi", "pydantic", "numpy", "onnxruntime", "anthropic", "httpx"}
+    assert names == {"fastapi", "pydantic", "numpy", "onnxruntime", "anthropic"}  # httpx comes with anthropic
     entry = (ROOT / "api" / "index.py").read_text(encoding="utf-8")
     assert "from kb.demo_web import create_app" in entry and "serve_static=False" in entry
 
@@ -473,3 +476,107 @@ def test_the_vercel_entry_point_imports(monkeypatch):
     client = TestClient(module.app)
     assert client.get("/api/config").status_code == 200 and client.get("/").status_code == 404  # Vercel serves public/
     assert Path(module.__file__).name == "index.py"
+
+
+# ------------------------------------------------------------------ round 1 review: limits, CPU, odd characters
+def test_ipv6_visitors_are_counted_by_their_64(index, monkeypatch):
+    assert visitor_key("2001:db8:1:2:aaaa::1") == visitor_key("2001:db8:1:2:ffff::9") == "2001:db8:1:2::/64"
+    assert visitor_key("2001:db8:1:3::1") != visitor_key("2001:db8:1:2::1")
+    assert visitor_key("203.0.113.7") == "203.0.113.7" and visitor_key("::ffff:203.0.113.7") == "203.0.113.7"
+    assert visitor_key("not an address") == "not an address"
+    monkeypatch.setattr("kb.demo_web.PER_VISITOR_REQUESTS", (2, 600))
+    monkeypatch.setenv("VERCEL", "1")
+    client = TestClient(create_app(index, client=None))
+    codes = [client.get("/api/config", headers={"x-vercel-forwarded-for": f"2001:db8:5:6::{i}"}).status_code for i in range(1, 4)]
+    assert codes == [200, 200, 429]  # a new address in the same /64 is the same visitor
+
+
+def test_the_instance_ai_cap_cannot_be_reset_by_many_visitors(monkeypatch):
+    monkeypatch.setattr("kb.demo_web.MAX_KEYS", 3)
+    limiter = Limiter()
+    assert limiter.allow_instance("ai", 2, 3600) and limiter.allow_instance("ai", 2, 3600)
+    for i in range(10):  # visitors pushing older visitors out of the limiter
+        limiter.allow(f"v{i}", 1, 600)
+    assert not limiter.allow_instance("ai", 2, 3600)
+
+
+def test_the_instance_ai_cap_is_applied(index, monkeypatch):
+    monkeypatch.setattr("kb.demo_web.PER_INSTANCE_AI", (1, 3600))
+    monkeypatch.setenv("VERCEL", "1")
+    fake = FakeAnthropic()
+    client = TestClient(create_app(index, client=fake))
+    first = client.post("/api/ask", json={"question": STORY["leave"], "persona": "maria"}, headers={"x-vercel-forwarded-for": "10.0.0.1"})
+    second = client.post("/api/ask", json={"question": STORY["leave"], "persona": "maria"}, headers={"x-vercel-forwarded-for": "10.0.0.2"})
+    assert first.json()["written_by"] == "claude" and second.json()["quoted_because"] == QUOTED_BECAUSE["busy"]
+    assert len(fake.requests) == 1
+
+
+def test_typed_questions_have_their_own_lower_limit(index, monkeypatch):
+    monkeypatch.setattr("kb.demo_web.PER_VISITOR_EMBED", (1, 600))
+    client = TestClient(create_app(index, client=None))
+    assert ask(client, "how much holiday do I get each year?")["search"]["by"] == "meaning"
+    second = ask(client, "who approves a big expense claim?")
+    assert second["search"] == {"by": "keywords", "keywords_alone": None, "note": SEARCH_NOTES["visitor_limit"]}
+    assert ask(client, STORY["scanner"])["search"]["by"] == "meaning"  # stored questions do not count
+    assert ask(client, "how much holiday do I get each year?")["search"]["by"] == "keywords"  # nor do repeats, once over
+    assert PER_VISITOR_EMBED[0] < 300  # lower than the limit on requests of any kind
+
+
+def test_the_model_reads_at_most_128_tokens_of_a_typed_question(index):
+    assert index.load_model() == "ready"
+    tokenizer = index.embedder.model._tokenizer  # type: ignore[union-attr]
+    long_question = "what about " + " ".join(f"word{i}" for i in range(400))
+    assert len(tokenizer.encode(long_question)) == QUESTION_TOKENS == 128
+    client = TestClient(create_app(index, client=None))
+    assert ask(client, long_question[:1000])["search"]["by"] == "meaning"
+
+
+def test_lone_surrogates_in_a_question_are_dropped(client):
+    raw = '{"question": "How much annual leave ' + chr(92) + 'ud800do I get?", "persona": "maria"}'
+    res = client.post("/api/ask", content=raw.encode(), headers={"Content-Type": "application/json"})
+    assert res.status_code == 200 and res.json()["question"] == "How much annual leave do I get?"
+    raw = '{"question": "' + chr(92) + 'udfff", "persona": "maria"}'
+    res = client.post("/api/ask", content=raw.encode(), headers={"Content-Type": "application/json"})
+    assert res.status_code == 400 and res.json()["message"] == "The question is empty."
+
+
+def test_the_word_cache_is_bounded_and_skips_long_words(index, monkeypatch):
+    from kb.onnx_embed import WordPieceTokenizer
+
+    monkeypatch.setattr("kb.onnx_embed.WORD_CACHE", 50)
+    tokenizer = WordPieceTokenizer(DEMO_DIR / "model" / "tokenizer.json")
+    tokenizer.encode(" ".join(f"w{i}x" for i in range(200)))
+    assert len(tokenizer._cache) == 50
+    tokenizer.encode("y" * 500)
+    assert "y" * 500 not in tokenizer._cache
+
+
+def test_the_question_vector_cache_is_safe_under_threads():
+    import threading
+
+    import numpy as np
+
+    from kb.demo_index import IndexedEmbedder
+
+    class Model:
+        def embed(self, texts):
+            return np.array([[float(len(t)), 1.0] for t in texts], dtype=np.float32)
+
+    embedder = IndexedEmbedder("m@x", ["known"], np.zeros((1, 2), dtype=np.float32), model=Model(), cache_size=2)
+    errors: list[BaseException] = []
+
+    def work(n: int) -> None:
+        try:
+            for i in range(300):
+                texts = ["known", f"t{(i * n) % 7}", f"u{i % 5}", f"t{(i * n) % 7}"]
+                rows = embedder.embed(texts)
+                assert rows.shape == (4, 2) and rows[1][0] == len(texts[1])
+        except BaseException as exc:  # noqa: BLE001 - collected for the assertion below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=work, args=(n,)) for n in range(1, 9)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert errors == []

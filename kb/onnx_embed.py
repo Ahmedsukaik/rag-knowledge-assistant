@@ -25,6 +25,7 @@ import json
 import re
 import threading
 import unicodedata
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -36,6 +37,7 @@ MODEL_FILE = "model_optimized.onnx"
 TOKENIZER_FILE = "tokenizer.json"
 DEMO_MODEL_DIR = ROOT / "demo" / "model"
 BATCH = 16
+WORD_CACHE = 20_000  # word pieces kept per tokenizer, least recently used out first
 
 # Unicode White_Space (what Rust's char::is_whitespace accepts), which the tokenizer uses.
 _WHITE_SPACE = frozenset("\t\n\x0b\x0c\r \x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009"
@@ -92,7 +94,8 @@ class WordPieceTokenizer:
         self.added = {t["content"]: t["id"] for t in spec.get("added_tokens", []) if not t.get("normalized", True)}
         names = sorted(self.added, key=len, reverse=True)
         self._added = re.compile("(" + "|".join(map(re.escape, names)) + ")") if names else None
-        self._cache: dict[str, list[int]] = {}
+        self._cache: OrderedDict[str, list[int]] = OrderedDict()
+        self._cache_lock = threading.Lock()
 
     # ------------------------------------------------------------------ the steps
     def normalize(self, text: str) -> str:
@@ -128,28 +131,32 @@ class WordPieceTokenizer:
         return words
 
     def word_pieces(self, word: str) -> list[int]:
-        cached = self._cache.get(word)
-        if cached is not None:
-            return cached
-        if len(word) > self.max_chars:
-            pieces = [self.unk]
-        else:
-            pieces, start = [], 0
-            while start < len(word):
-                end, found = len(word), None
-                while start < end:
-                    piece = word[start:end] if start == 0 else self.prefix + word[start:end]
-                    if piece in self.vocab:
-                        found = self.vocab[piece]
-                        break
-                    end -= 1
-                if found is None:
-                    pieces = [self.unk]
+        if len(word) > self.max_chars:  # never cached: anyone can send long words
+            return [self.unk]
+        with self._cache_lock:
+            cached = self._cache.get(word)
+            if cached is not None:
+                self._cache.move_to_end(word)
+                return cached
+        pieces: list[int] = []
+        start = 0
+        while start < len(word):
+            end, found = len(word), None
+            while start < end:
+                piece = word[start:end] if start == 0 else self.prefix + word[start:end]
+                if piece in self.vocab:
+                    found = self.vocab[piece]
                     break
-                pieces.append(found)
-                start = end
-        if len(self._cache) < 50_000:
+                end -= 1
+            if found is None:
+                pieces = [self.unk]
+                break
+            pieces.append(found)
+            start = end
+        with self._cache_lock:  # a bounded cache, least recently used out first
             self._cache[word] = pieces
+            while len(self._cache) > WORD_CACHE:
+                self._cache.popitem(last=False)
         return pieces
 
     def encode(self, text: str) -> list[int]:
@@ -177,8 +184,12 @@ class OnnxEmbedder:
     """BAAI/bge-small-en-v1.5 from a folder with model_optimized.onnx and tokenizer.json.
     Loaded once, on first use, and shared by every thread."""
 
-    def __init__(self, folder: str | Path = DEMO_MODEL_DIR, name: str = DEFAULT_EMBED_MODEL, threads: int | None = None):
+    def __init__(self, folder: str | Path = DEMO_MODEL_DIR, name: str = DEFAULT_EMBED_MODEL, threads: int | None = None,
+                 max_tokens: int = 512):
+        """max_tokens: the longest input, [CLS] and [SEP] included. 512 is the model's own limit (as in
+        fastembed); the web demo uses 128 for typed questions, which caps the work one question causes."""
         self.name = name
+        self.max_tokens = max_tokens
         self.folder = Path(folder)
         self.threads = threads
         self._session: Any = None
@@ -209,7 +220,7 @@ class OnnxEmbedder:
                 import onnxruntime as ort
             except ImportError:
                 raise EmbeddingUnavailable("the onnxruntime package is not installed") from None
-            tokenizer = WordPieceTokenizer(self.folder / TOKENIZER_FILE)
+            tokenizer = WordPieceTokenizer(self.folder / TOKENIZER_FILE, max_length=self.max_tokens)
             options = ort.SessionOptions()
             options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
             if self.threads:

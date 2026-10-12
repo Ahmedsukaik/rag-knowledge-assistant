@@ -135,3 +135,29 @@ def test_vectors_the_model_makes_are_kept_for_a_while():
     embedder.embed(["b", "c"])
     embedder.embed(["new"])  # pushed out by b and c
     assert calls[-1] == ["new"]
+
+
+def test_the_eval_answers_restated_as_claude_cites_them_pass_the_source_check(index):
+    """The support check on cited sentences (kb/answer.py, SUPPORT_SHARE) was tuned so that every
+    answer of the three sets, found by meaning and keywords, still passes when Claude cites it."""
+    from test_answer import cited_response
+
+    from kb.answer import ExtractiveAnswerer, check_model_answer
+    from kb.config import parse_roles
+    from kb.evaluate import load_questions
+
+    kb = KnowledgeBase(index.store, index.hybrid)
+    roles = parse_roles(DEFAULT_ROLES)
+    checked = 0
+    for path in ("questions.jsonl", "heldout.jsonl", "heldout_v2.jsonl"):
+        for item in load_questions(ROOT / "eval" / path):
+            who = Identity("eval", item["role"], roles[item["role"]])
+            hits, _ = kb.select_passages(clean_query(item["question"]), kb.visible(who))
+            quoted = ExtractiveAnswerer(embedder=index.embedder).answer(clean_query(item["question"]), hits) if hits else None
+            if not quoted or quoted.status != "answered":
+                continue
+            blocks = [(c.quote, c.quote) for c in quoted.citations]
+            answer = check_model_answer(cited_response(hits, *blocks), item["question"], hits)
+            assert answer.status == "answered", (item["id"], answer.warnings)
+            checked += 1
+    assert checked >= 60  # 36 + 14 + 10 answered, as in eval/baseline.json, plus the answered out-of-scope ones

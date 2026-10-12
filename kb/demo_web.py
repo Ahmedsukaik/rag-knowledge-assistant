@@ -25,6 +25,7 @@ by keywords only, and the page says so.
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import logging
 import os
@@ -61,6 +62,8 @@ MAX_DEPTH = 4
 PER_VISITOR_REQUESTS = (300, 600)   # requests of any kind per visitor (IP) per 10 minutes
 PER_VISITOR_AI = (20, 600)          # AI answers per visitor per 10 minutes
 PER_INSTANCE_AI = (600, 3600)       # AI answers per server instance per hour
+PER_VISITOR_EMBED = (40, 600)       # typed questions for the meaning model per visitor per 10 minutes
+PER_INSTANCE_EMBED = (3000, 3600)   # and per server instance per hour (the story and chips do not count)
 MAX_ACTIVE = 2                      # requests in progress at once per visitor
 MAX_KEYS = 5000                     # visitors the limiter remembers per instance
 UNLIMITED = ModelBudget(10**9, 10**9, 10**9)  # the Limiter below decides instead (per visitor, not per persona)
@@ -76,8 +79,8 @@ SECURITY_HEADERS = {
 
 # Why an answer is quoted instead of written by the AI, as the page says it.
 QUOTED_BECAUSE = {
-    "no_key": "No AI key is set for this copy of the demo, so the answer is quoted word for word from the documents.",
-    "off": "The AI is switched off for this copy of the demo, so the answer is quoted word for word from the documents.",
+    "no_key": "Quoted mode: every answer is the documents' own sentence, word for word.",
+    "off": "Quoted mode: every answer is the documents' own sentence, word for word.",
     "chosen": "You chose quoted answers, so this one is quoted word for word from the documents (no AI call).",
     "visitor_limit": "You have asked many questions in a few minutes, so this answer is quoted word for word instead.",
     "busy": "The demo's AI is busy right now, so this answer is quoted word for word instead.",
@@ -95,6 +98,8 @@ SEARCH_NOTES = {
     "broken": "The meaning model could not be loaded, so questions you type are searched by keywords only.",
     "mismatch": "The meaning model on this server does not match the stored vectors, so questions you type are "
                 "searched by keywords only.",
+    "visitor_limit": "You have asked many new questions in a few minutes, so this one was searched by keywords only.",
+    "busy": "The demo is busy right now, so this question was searched by keywords only.",
 }
 
 
@@ -112,22 +117,35 @@ class Limiter:
 
     def __init__(self) -> None:
         self._hits: OrderedDict[str, deque[float]] = OrderedDict()
+        self._instance: dict[str, deque[float]] = {}  # whole-instance caps: never forgotten to make room
         self._active: dict[str, int] = {}
         self._lock = threading.Lock()
 
+    @staticmethod
+    def _take(hits: deque[float], limit: int, window: float, now: float) -> bool:
+        while hits and now - hits[0] > window:
+            hits.popleft()
+        if len(hits) >= limit:
+            return False
+        hits.append(now)
+        return True
+
     def allow(self, key: str, limit: int, window: float) -> bool:
+        """One more for this visitor, if under `limit` in the last `window` seconds."""
         now = time.monotonic()
         with self._lock:
             hits = self._hits.pop(key, None) or deque()
             self._hits[key] = hits  # most recently seen last
-            while hits and now - hits[0] > window:
-                hits.popleft()
-            if len(hits) >= limit:
-                return False
-            hits.append(now)
+            allowed = self._take(hits, limit, window, now)
             while len(self._hits) > MAX_KEYS:  # forget the visitor seen longest ago
                 self._hits.popitem(last=False)
-            return True
+            return allowed
+
+    def allow_instance(self, name: str, limit: int, window: float) -> bool:
+        """One more for the whole server instance. Kept apart from the visitors, so many new
+        visitors cannot push this counter out and reset it."""
+        with self._lock:
+            return self._take(self._instance.setdefault(name, deque()), limit, window, time.monotonic())
 
     def enter(self, key: str) -> bool:
         """One more request in progress for this visitor, if under MAX_ACTIVE."""
@@ -203,7 +221,8 @@ class ClaudeOrQuotes:
 
     def __init__(self, client: Any, embedder: Embedder | None, gate: Callable[[], str | None]):
         self.recorder = RecordingClient(client)
-        self.claude = ClaudeAnswerer(client=self.recorder, model=MODEL, effort="low", max_tokens=MAX_TOKENS,
+        # Thinking off, so it cannot use up the 2,000 tokens (Haiku 5.5 accepts that at effort low).
+        self.claude = ClaudeAnswerer(client=self.recorder, model=MODEL, effort="low", max_tokens=MAX_TOKENS, thinking="disabled",
                                      embedder=embedder)
         self.quoted = ExtractiveAnswerer(embedder=embedder)
         self.gate = gate
@@ -297,7 +316,10 @@ class Demo:
         return {"meaning_model": state, "ms": int((time.monotonic() - started) * 1000)}
 
     def ask(self, question: Any, persona_id: Any, want_ai: bool = True, simulate: Any = None,
-            gate: Callable[[], str | None] = lambda: None) -> dict[str, Any]:
+            gate: Callable[[], str | None] = lambda: None,
+            embed_gate: Callable[[], str | None] = lambda: None) -> dict[str, Any]:
+        """gate: asked right before an AI answer; embed_gate: asked before a typed question goes to the
+        meaning model. Each returns None to go ahead, or the reason it may not."""
         persona = PERSONAS.get(persona_id) if isinstance(persona_id, str) else None
         if persona is None:
             raise ActionError("Pick Maria, Hana or Farid.")
@@ -306,14 +328,20 @@ class Demo:
             raise ActionError("Unknown test.")
         if simulate and text != STORY["leave"]:
             raise ActionError("The forced draft is only for the annual leave question in the story.")
-        meaning = self.index.can_embed(text)
+        why_keywords = None  # a key of SEARCH_NOTES when the question is searched by keywords only
+        if not self.index.embedder.knows(text):  # stored questions (story, chips, eval) cost nothing
+            state = self.index.load_model()
+            why_keywords = None if state == "ready" else state
+            if why_keywords is None:
+                why_keywords = embed_gate()
+        meaning = why_keywords is None
         retriever = self.index.hybrid if meaning else self.index.keywords
         embedder: Embedder | None = self.index.embedder if meaning else None
         answerer: Any
         written, reason, step = "quoted", None, None
         if simulate:
             answerer, written = ClaudeAnswerer(client=SimulatedBadDraft(), model=MODEL, effort="low", max_tokens=MAX_TOKENS,
-                                               embedder=embedder), "simulated"
+                                               thinking="disabled", embedder=embedder), "simulated"
         elif not want_ai:
             answerer, reason = ExtractiveAnswerer(embedder=embedder), "chosen"
         elif self.client is None:
@@ -342,10 +370,10 @@ class Demo:
             "warnings": warnings, "problems": problems,
             "draft": result.draft if result.status == "flagged" else None,
             "written_by": written, "model": MODEL if written in ("claude", "simulated") else None,
-            "quoted_because": QUOTED_BECAUSE.get(reason or ""),
+            # The demo-wide reasons (no key, AI off) are said once on the page, not on every card.
+            "quoted_because": None if reason in ("no_key", "off") else QUOTED_BECAUSE.get(reason or ""),
             "search": {"by": "meaning" if meaning else "keywords", "keywords_alone": keywords_alone,
-                       "note": None if meaning else SEARCH_NOTES.get(self.index.model_state,
-                                                                     SEARCH_NOTES["missing"])},
+                       "note": None if meaning else SEARCH_NOTES.get(why_keywords or "missing", SEARCH_NOTES["missing"])},
             "cost": {"usd": round(cost_usd(MODEL, usage), 7), "input_tokens": usage.get("input_tokens", 0),
                      "output_tokens": usage.get("output_tokens", 0)},
             "audit": audit, "ms": elapsed,
@@ -377,6 +405,18 @@ def split_warnings(warnings: list[str]) -> tuple[list[str], list[str]]:
         if w.startswith("The AI answer did not pass"):
             return warnings[:i], warnings[i + 1:]
     return list(warnings), []
+
+
+def visitor_key(address: str) -> str:
+    """The key the limits count by: an IPv4 address as it is, an IPv6 address by its /64 network
+    (one home or phone connection usually holds a whole /64, so each address in it is the same visitor)."""
+    try:
+        ip = ipaddress.ip_address(address.strip("[]"))
+    except ValueError:
+        return address[:64]
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is None:
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip.ipv4_mapped or ip) if isinstance(ip, ipaddress.IPv6Address) else str(ip)
 
 
 def _no_constants(name: str) -> Any:
@@ -412,8 +452,8 @@ def create_app(index: DemoIndex | None = None, client: Any = "env", serve_static
         if os.environ.get("VERCEL"):
             forwarded = request.headers.get("x-vercel-forwarded-for") or request.headers.get("x-forwarded-for", "")
             if forwarded.strip():
-                return forwarded.split(",")[0].strip()[:64]
-        return request.client.host if request.client else "unknown"
+                return visitor_key(forwarded.split(",")[0].strip()[:64])
+        return visitor_key(request.client.host if request.client else "unknown")
 
     def count(request: Request) -> str:
         who = visitor(request)
@@ -486,7 +526,15 @@ def create_app(index: DemoIndex | None = None, client: Any = "env", serve_static
             """Asked right before an AI answer: may this visitor have one now?"""
             if not app.state.limiter.allow("ai:" + who, *PER_VISITOR_AI):
                 return "visitor_limit"
-            if not app.state.limiter.allow("instance-ai", *PER_INSTANCE_AI):
+            if not app.state.limiter.allow_instance("ai", *PER_INSTANCE_AI):
+                return "busy"
+            return None
+
+        def embed_gate() -> str | None:
+            """Asked before a typed question goes to the meaning model (it costs CPU time)."""
+            if not app.state.limiter.allow("embed:" + who, *PER_VISITOR_EMBED):
+                return "visitor_limit"
+            if not app.state.limiter.allow_instance("embed", *PER_INSTANCE_EMBED):
                 return "busy"
             return None
 
@@ -496,7 +544,7 @@ def create_app(index: DemoIndex | None = None, client: Any = "env", serve_static
             # The search and an AI answer block: run them in a worker thread so other visitors are not kept waiting.
             result: dict[str, Any] = await run_in_threadpool(
                 app.state.demo.ask, data.get("question"), data.get("persona"), data.get("ai", True) is not False,
-                data.get("simulate"), gate)
+                data.get("simulate"), gate, embed_gate)
         finally:
             app.state.limiter.leave(who)
         return result

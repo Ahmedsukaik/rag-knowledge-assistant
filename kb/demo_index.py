@@ -53,6 +53,7 @@ MODEL_SOURCE = {"repository": "Qdrant/bge-small-en-v1.5-onnx-Q", "revision": "aa
                 "onnx_sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431", "licence": "MIT"}
 MODEL_FILES = ("model_optimized.onnx", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "config.json")
 DIMENSION = 384
+QUESTION_TOKENS = 128   # the longest typed question the model reads, in tokens (about 90 words)
 
 
 @dataclass(frozen=True)
@@ -176,26 +177,27 @@ class IndexedEmbedder:
     def embed(self, texts: Sequence[str]) -> np.ndarray:
         if not texts:
             return np.zeros((0, 0), dtype=np.float32)
-        with self._lock:
-            missing = [t for t in dict.fromkeys(texts) if t not in self._table and t not in self._fresh]
+        have: dict[str, np.ndarray] = {}
+        with self._lock:  # one look at the cache: another thread may push entries out right after
+            for t in dict.fromkeys(texts):
+                if t in self._table:
+                    have[t] = self._table[t]
+                elif t in self._fresh:
+                    self._fresh.move_to_end(t)
+                    have[t] = self._fresh[t]
+        missing = [t for t in dict.fromkeys(texts) if t not in have]
         if missing:
-            if self.model is None:
+            model = self.model
+            if model is None:
                 raise EmbeddingUnavailable(f"no stored vector for {len(missing)} text(s) and no model to make one")
-            made = self.model.embed(missing)
+            made = model.embed(missing)
+            have.update(zip(missing, made, strict=True))
             with self._lock:
-                for text, vector in zip(missing, made, strict=True):
-                    self._fresh[text] = vector
+                for text in missing:
+                    self._fresh[text] = have[text]
                 while len(self._fresh) > self._cache_size:
                     self._fresh.popitem(last=False)
-        with self._lock:
-            rows = []
-            for t in texts:
-                if t in self._table:
-                    rows.append(self._table[t])
-                else:
-                    self._fresh.move_to_end(t)
-                    rows.append(self._fresh[t])
-        return np.stack(rows).astype(np.float32)
+        return np.stack([have[t] for t in texts]).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------- what is precomputed
@@ -246,7 +248,7 @@ class DemoIndex:
         self.store = ReadOnlyStore(self.folder / "kb.db")
         texts, vectors = load_vectors(self.folder / "vectors.npz")
         self.key: str = self.manifest["model"]["key"]
-        model = OnnxEmbedder(model_folder) if model_folder is not None else None
+        model = OnnxEmbedder(model_folder, max_tokens=QUESTION_TOKENS) if model_folder is not None else None
         self.model_state = "off" if model is None else ("waiting" if model.available() else "missing")
         self.embedder = IndexedEmbedder(self.key, texts, vectors, model if self.model_state == "waiting" else None)
         self._model = model
