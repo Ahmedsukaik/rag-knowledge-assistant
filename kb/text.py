@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import re
 
-# Control characters, zero-width characters and bidi overrides. They can hide text from a
+# Control characters, zero-width characters, bidi overrides and lone surrogates (half of a
+# character pair, which cannot even be written as UTF-8). They can hide text from a
 # human reader (and make printed output lie about what it shows), so they are removed from
 # document text at ingestion and from anything printed on one line.
-_INVISIBLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]")
+_INVISIBLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff\ud800-\udfff]")
 
 
 def clean_document_text(text: str) -> str:

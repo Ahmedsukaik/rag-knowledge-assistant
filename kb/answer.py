@@ -20,7 +20,10 @@ Whatever the model returns is checked in code before anyone sees it (check_model
 * text without a citation may only connect or introduce cited statements: every word in it
   must be a connecting word ("and", "according to") or appear in a cited passage, and it may
   not add a number, a "not" or a "yes" that the cited text does not support;
-* a cited statement may not add a number or a "not" that its quote does not have;
+* a cited statement may not add a number or a "not" that its quote does not have, and may not
+  drop a "not" that the quote it rests on has;
+* most of the content words of every cited sentence (SUPPORT_SHARE) must appear in the
+  passages it cites or their titles, so an invented claim cannot ride along with a real citation;
 * a citation of a sentence that addresses an AI ("ignore previous instructions") is refused.
 
 If any check fails, the model's text is withheld and the quoted passages are shown instead,
@@ -255,8 +258,14 @@ class ClaudeAnswerer:
     mode = "claude"
 
     def __init__(self, client: Any | None = None, model: str | None = None, effort: str | None = None,
-                 max_tokens: int = 16000, fallbacks: str | None = None, embedder: Embedder | None = None):
+                 max_tokens: int = 16000, fallbacks: str | None = None, embedder: Embedder | None = None,
+                 thinking: str | None = None):
         self.embedder = embedder  # picks the quotes shown when an answer fails the source check
+        # "disabled" sends thinking {"type": "disabled"} (models that accept it, such as Claude Haiku 5.5 at
+        # effort low to high), so thinking cannot use up max_tokens. None: the model's own default.
+        if thinking not in (None, "disabled"):
+            raise ValueError("thinking must be None or 'disabled'")
+        self.thinking = thinking
         self.model = model or os.environ.get(MODEL_SETTING) or DEFAULT_MODEL
         chosen_effort = (effort or os.environ.get(EFFORT_SETTING) or "").strip().lower() or None
         # Server-side fallback: if the model's safety classifier declines a request, the API
@@ -286,6 +295,8 @@ class ClaudeAnswerer:
         }
         if self.effort:
             kwargs["output_config"] = {"effort": self.effort}
+        if self.thinking:
+            kwargs["thinking"] = {"type": self.thinking}
         if self.fallbacks == "default":
             kwargs["betas"] = [FALLBACK_BETA]
             kwargs["fallbacks"] = "default"
@@ -346,6 +357,15 @@ NUMBER_WORDS = {"two": "2", "three": "3", "four": "4", "five": "5", "six": "6", 
                 "thirty": "30", "forty": "40", "fifty": "50", "hundred": "100", "thousand": "1000", "million": "1000000"}
 
 
+# A cited sentence must rest on what it cites: at least this share of its content words (as the
+# keyword search sees them: stopwords removed, stemmed, synonyms merged; connecting words not
+# counted) must appear in the cited passages or their titles. 0.8 keeps every answer the tests
+# accept, the eval answers restated as Claude cites them, and the realistic paraphrases in
+# tests/test_answer.py, while an invented sentence next to a real citation fails it.
+SUPPORT_SHARE = 0.8
+_CONNECTIVE_TOKENS = frozenset(tokenize(" ".join(CONNECTIVES)))
+
+
 def _words(text: str) -> list[str]:
     return re.findall(r"[^\W_]+(?:'t)?", text.lower())
 
@@ -363,6 +383,35 @@ def _numbers(text: str) -> set[str]:
 
 def _negated(text: str) -> bool:
     return any(w in NEGATIONS or w.endswith("n't") for w in _words(text))
+
+
+def support_share(sentence: str, chunks: list[Chunk]) -> float:
+    """The share of a sentence's content words found in these passages, their titles or sections.
+    A word also counts when it shares its first five letters with one there (approval, approved)."""
+    words = [w for w in tokenize(sentence) if w not in _CONNECTIVE_TOKENS]
+    if not words:
+        return 1.0
+    support = set(tokenize(" ".join(f"{c.title} {c.section or ''} {c.text}" for c in chunks)))
+    stems = {w[:5] for w in support if len(w) >= 5}
+    found = sum(w in support or (len(w) >= 5 and w[:5] in stems) for w in words)
+    return found / len(words)
+
+
+def _support_problem(text: str, quotes: list[str], chunks: list[Chunk]) -> str | None:
+    """Why a cited block says more than its sources, sentence by sentence, or None."""
+    quoted = [s for q in quotes for s in split_sentences(q)] or quotes
+    quoted_words = [set(tokenize(q)) for q in quoted]
+    for sentence in split_sentences(text) or [text]:
+        if support_share(sentence, chunks) < SUPPORT_SHARE:
+            return "a cited statement says things its source does not"
+        words = set(tokenize(sentence)) - _CONNECTIVE_TOKENS
+        overlap = [len(words & q) for q in quoted_words]
+        best = max(overlap, default=0)
+        # The quoted sentence it rests on (the one sharing most words) must agree on "not":
+        # "Claims of any amount are approved automatically" next to "No claim is approved automatically".
+        if best and not any(_negated(q) == _negated(sentence) for q, n in zip(quoted, overlap, strict=True) if n == best):
+            return "a cited statement drops or adds a \"not\" compared with the sentence it cites"
+    return None
 
 
 def _uncited_problem(text: str, source_names: set[str]) -> bool:
@@ -411,6 +460,9 @@ def check_model_answer(response: Any, question: str, hits: list[Hit],
                 problems.append("a cited statement has a number that its source does not")
             if _negated(text) and not _negated(" ".join(quotes)):
                 problems.append("a cited statement says \"not\" where its quote does not")
+            support = _support_problem(text, quotes, [hits[n - 1].chunk for n in numbers])
+            if support:
+                problems.append(support)
         parts.append({"text": text, "sources": numbers})
         if numbers:
             texts.append(text.rstrip() + " " + "".join(f"[{n}]" for n in numbers) + text[len(text.rstrip()):])

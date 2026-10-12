@@ -121,3 +121,12 @@ def test_synonyms_merge_words_in_documents_and_questions():
     assert mapping == {"holiday": "leav", "vacation": "leav", "notebook": "laptop"}  # stemmed forms
     assert tokenize("unused holidays") == tokenize("unused leave")  # the shipped list, kb/synonyms.txt
     assert load_synonyms("off") == {}
+
+
+def test_lone_surrogates_are_dropped_from_questions():
+    """Half of a character pair cannot be written as UTF-8: a reply that echoed it would fail."""
+    from kb.service import clean_query
+
+    assert clean_query("How much" + chr(0xD800) + " leave?") == "How much leave?"
+    assert one_line("a" + chr(0xDFFF) + "b") == "ab"
+    assert clean_document_text("x" + chr(0xDC00)) == "x"
