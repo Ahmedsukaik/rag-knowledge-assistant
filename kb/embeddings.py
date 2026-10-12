@@ -9,6 +9,10 @@ for a newer revision, so the model cannot change under the stored vectors.
 
     python -m kb download-model      fetch it ahead of time (for example before going offline)
 
+The repository also holds a copy of that file for the web demo (demo/model, see the README's
+"Live demo"). When the models folder does not have the model yet, that copy is used instead of
+a second download, after its SHA-256 is checked against the published file.
+
 A vector is stored for every passage when it is ingested (table `vectors`), under the
 embedder's `key`: the model name plus a fingerprint of the model file. A passage whose vector
 is missing, has the wrong size, or was made by other model files (a database made with
@@ -29,6 +33,11 @@ if TYPE_CHECKING:
 
 DEFAULT_EMBED_MODEL = "BAAI/bge-small-en-v1.5"
 ROOT = Path(__file__).resolve().parent.parent
+# The copy of the default model kept for the web demo, and the SHA-256 of its ONNX file as
+# published (Qdrant/bge-small-en-v1.5-onnx-Q, revision aa8f8b060edb00e03bfdd08813a2949946c8ba55).
+SHIPPED_MODEL_DIR = ROOT / "demo" / "model"
+SHIPPED_MODEL_SHA256 = "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431"
+SHIPPED_MODEL_FILES = ("model_optimized.onnx", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "config.json")
 
 
 class EmbeddingUnavailable(RuntimeError):
@@ -65,6 +74,19 @@ def from_blob(blob: bytes) -> np.ndarray:
     return np.frombuffer(blob, dtype="<f4")
 
 
+def shipped_model(model: str) -> Path | None:
+    """The repository's own copy of `model` (demo/model), if it is that model and its ONNX file is
+    the published one; else None."""
+    folder = SHIPPED_MODEL_DIR
+    if model != DEFAULT_EMBED_MODEL or not all((folder / name).is_file() for name in SHIPPED_MODEL_FILES):
+        return None
+    digest = hashlib.sha256()
+    with (folder / SHIPPED_MODEL_FILES[0]).open("rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return folder if digest.hexdigest() == SHIPPED_MODEL_SHA256 else None
+
+
 def _unit(rows: np.ndarray) -> np.ndarray:
     norms = np.linalg.norm(rows, axis=1, keepdims=True)
     return (rows / np.where(norms == 0, 1, norms)).astype(np.float32)
@@ -78,6 +100,7 @@ class FastEmbedder:
         self.cache_dir = Path(cache_dir or model_dir())
         self._model: Any = None
         self._key = ""
+        self.source = ""  # where it was loaded from: "folder", "shipped copy" or "download"
         self._lock = threading.Lock()
 
     @property
@@ -110,9 +133,16 @@ class FastEmbedder:
             _quiet_fastembed()
             try:  # already downloaded: load it from the folder, without asking for a newer revision
                 self._model = TextEmbedding(self.name, cache_dir=str(self.cache_dir), local_files_only=True)
+                self.source = "folder"
             except Exception:
-                try:  # first use: download it
-                    self._model = TextEmbedding(self.name, cache_dir=str(self.cache_dir))
+                shipped = shipped_model(self.name)
+                try:
+                    if shipped is not None:  # the repository's own copy: no second download
+                        self._model = TextEmbedding(self.name, cache_dir=str(self.cache_dir), specific_model_path=str(shipped))
+                        self.source = "shipped copy"
+                    else:  # first use: download it
+                        self._model = TextEmbedding(self.name, cache_dir=str(self.cache_dir))
+                        self.source = "download"
                 except Exception as exc:
                     raise EmbeddingUnavailable(
                         f"the embedding model {self.name} is not in {self.cache_dir} and could not be downloaded "

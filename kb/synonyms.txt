@@ -28,3 +28,4 @@ print, printer, printers, printing
 warranty, guarantee
 probation, trial
 pension, retirement
+tracker, scanner, scanners

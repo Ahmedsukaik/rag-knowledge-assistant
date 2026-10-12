@@ -324,6 +324,10 @@ def _download_model(args: argparse.Namespace) -> int:
     except EmbeddingUnavailable as exc:
         print(f"Failed: {exc}.", file=sys.stderr)
         return 1
+    if embedder.source == "shipped copy":
+        print("Ready. The repository's own copy in demo/model was used (its SHA-256 matches the published file), "
+              "so nothing was downloaded; later runs need no network.")
+        return 0
     print(f"Ready. The folder holds {embedder.size_on_disk() / 1_000_000:.0f} MB; later runs need no network.")
     return 0
 

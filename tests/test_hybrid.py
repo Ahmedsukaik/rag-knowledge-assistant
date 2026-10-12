@@ -290,3 +290,28 @@ def run_cli_python(code: str, env: dict[str, str]) -> subprocess.CompletedProces
     full = {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONPATH": str(ROOT), **env}
     return subprocess.run([sys.executable, "-c", code], cwd=env["CWD"], env=full, capture_output=True, text=True,
                           encoding="utf-8", timeout=120)
+
+
+def test_without_a_download_the_repositorys_own_copy_is_used(tmp_path, monkeypatch, embedder):
+    """demo/model holds the same ONNX file for the web demo: a fresh clone needs no second download."""
+    from kb.embeddings import shipped_model
+
+    if shipped_model("BAAI/bge-small-en-v1.5") is None:
+        pytest.skip("demo/model is not in this checkout")
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")  # nothing may be fetched
+    fresh = FastEmbedder(cache_dir=tmp_path / "empty")
+    fresh.load()
+    assert fresh.source == "shipped copy" and fresh.key == embedder.key
+    vector = fresh.embed(["How many days of annual leave do I get?"])[0]
+    assert float(vector @ embedder.embed(["How many days of annual leave do I get?"])[0]) > 0.9999
+    assert embedder.source == "folder"  # the models folder still comes first when it has the model
+
+
+def test_a_changed_copy_is_never_used(tmp_path, monkeypatch):
+    import kb.embeddings as embeddings
+
+    for name in embeddings.SHIPPED_MODEL_FILES:
+        (tmp_path / name).write_text("{}")
+    monkeypatch.setattr(embeddings, "SHIPPED_MODEL_DIR", tmp_path)
+    assert embeddings.shipped_model("BAAI/bge-small-en-v1.5") is None  # its SHA-256 differs
+    assert embeddings.shipped_model("another/model") is None

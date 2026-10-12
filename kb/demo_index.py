@@ -37,7 +37,7 @@ import numpy as np
 
 from .answer import sentence_text
 from .config import DEFAULT_ROLES, Identity
-from .embeddings import DEFAULT_EMBED_MODEL, ROOT, EmbeddingUnavailable
+from .embeddings import DEFAULT_EMBED_MODEL, ROOT, SHIPPED_MODEL_FILES, SHIPPED_MODEL_SHA256, EmbeddingUnavailable
 from .evaluate import evaluate_items, load_questions
 from .onnx_embed import DEMO_MODEL_DIR, OnnxEmbedder
 from .retrieval import BM25Retriever, HybridRetriever
@@ -50,8 +50,8 @@ SAMPLES_DIR = ROOT / "samples" / "docs"
 EVAL_SETS = {"main": ROOT / "eval" / "questions.jsonl", "heldout": ROOT / "eval" / "heldout.jsonl",
              "heldout_v2": ROOT / "eval" / "heldout_v2.jsonl"}
 MODEL_SOURCE = {"repository": "Qdrant/bge-small-en-v1.5-onnx-Q", "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
-                "onnx_sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431", "licence": "MIT"}
-MODEL_FILES = ("model_optimized.onnx", "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "config.json")
+                "onnx_sha256": SHIPPED_MODEL_SHA256, "licence": "MIT"}
+MODEL_FILES = SHIPPED_MODEL_FILES
 DIMENSION = 384
 QUESTION_TOKENS = 128   # the longest typed question the model reads, in tokens (about 90 words)
 
