@@ -1,0 +1,87 @@
+/* Design tokens for the demo page: "Annotated". White document pages on a warm grey desk,
+   a yellow highlighter for quoted sentences, ink blue footnotes, a red stamp for refusals.
+   Document pages stay white in dark mode (they are paper); the desk and the controls go dark.
+   Every text colour below meets 4.5:1 on the background it is used on. */
+:root {
+  color-scheme: light;
+  --desk: #F3F2EF;
+  --desk-deep: #ECEAE5;
+  --surface: #FBFAF8;
+  --ink: #1C1B19;
+  --ink-2: #3F3C36;
+  --muted: #6B675F;
+  --rule: #DFDBD3;
+  --rule-strong: #C9C4BA;
+
+  /* paper: the same in light and dark mode */
+  --paper: #FFFFFF;
+  --paper-ink: #1C1B19;
+  --paper-ink-2: #3F3C36;
+  --paper-muted: #5E5A52;
+  --paper-rule: #E7E4DD;
+  --paper-edge: #E2DED6;
+
+  --blue: #1E3A8A;
+  --blue-ink: #1E3A8A;
+  --blue-soft: #E8EDFB;
+  --blue-line: #B9C6EE;
+  --hl: #FFE58A;
+  --hl-soft: #FFF4C7;
+  --red: #B42318;
+  --red-soft: #FDECEA;
+  --red-line: #F2B8B2;
+  --green: #1F6F43;
+  --green-soft: #E7F3EC;
+  --check: #1F6F43;
+  --pencil: #8A847A;
+
+  --btn-bg: #1E3A8A;
+  --btn-ink: #FFFFFF;
+  --btn-hover: #172E6E;
+  --focus: #1E3A8A;
+  --chip-bg: #FFFFFF;
+  --chip-ink: #1C1B19;
+  --link: #1E3A8A;
+
+  --shadow-page: 0 1px 0 rgba(28, 27, 25, .04), 0 10px 28px -14px rgba(60, 45, 20, .28);
+  --shadow-sheet: 0 -8px 28px -10px rgba(28, 27, 25, .22);
+
+  --font-ui: "Public Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-doc: "Newsreader", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --topbar-h: 60px;
+  --tap: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --desk: #141412;
+    --desk-deep: #0F0F0E;
+    --surface: #1C1B19;
+    --ink: #ECEAE4;
+    --ink-2: #D2CEC5;
+    --muted: #A8A49B;
+    --rule: #34322D;
+    --rule-strong: #4A4740;
+    --blue-ink: #A9BEF7;
+    --blue-soft: #1D2742;
+    --blue-line: #3A4C82;
+    --red-soft: #3A1D1A;
+    --green-soft: #17271E;
+    --check: #7BD3A1;
+    --pencil: #9C968B;
+    --btn-bg: #C9D6FA;
+    --btn-ink: #0F1D45;
+    --btn-hover: #DCE5FC;
+    --focus: #A9BEF7;
+    --chip-bg: #22211E;
+    --chip-ink: #ECEAE4;
+    --link: #A9BEF7;
+    --shadow-page: 0 1px 0 rgba(0, 0, 0, .3), 0 12px 30px -14px rgba(0, 0, 0, .7);
+    --shadow-sheet: 0 -8px 28px -10px rgba(0, 0, 0, .7);
+  }
+}

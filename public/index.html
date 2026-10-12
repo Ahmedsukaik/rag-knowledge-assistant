@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>RAG Knowledge Assistant: live demo</title>
+<meta name="description" content="Ask a fictional company's documents a question. Every answer has footnotes that open the exact sentence it quotes, and each person sees only what their role allows. A one minute demo.">
+<meta name="color-scheme" content="light dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400&family=Public+Sans:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='3' width='22' height='26' rx='3' fill='%23fff' stroke='%231E3A8A' stroke-width='2'/%3E%3Crect x='9' y='12' width='14' height='5' fill='%23FFE58A'/%3E%3Cpath d='M9 9h14M9 21h10' stroke='%23999' stroke-width='2'/%3E%3C/svg%3E">
+</head>
+<body class="in-story" data-step="0" data-pane="answer">
+<svg width="0" height="0" class="sprite" aria-hidden="true">
+  <symbol id="page" viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 17h5"/></symbol>
+  <symbol id="check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 5-5.5"/></symbol>
+  <symbol id="alert" viewBox="0 0 24 24"><path d="M10.3 4 2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0Z"/><path d="M12 9.5v4M12 17h.01"/></symbol>
+  <symbol id="shield" viewBox="0 0 24 24"><path d="M12 3 4.5 6v5.6c0 4.5 3.1 8.1 7.5 9.4 4.4-1.3 7.5-4.9 7.5-9.4V6Z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c.9-3.8 3.9-6 7.5-6s6.6 2.2 7.5 6"/></symbol>
+  <symbol id="refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/></symbol>
+  <symbol id="code" viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4"/></symbol>
+  <symbol id="arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></symbol>
+  <symbol id="arrow-left" viewBox="0 0 24 24"><path d="M19 12H5"/><path d="m11 6-6 6 6 6"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+  <symbol id="spark" viewBox="0 0 24 24"><path d="M12 3.5 13.8 9a2 2 0 0 0 1.2 1.2l5.5 1.8-5.5 1.8a2 2 0 0 0-1.2 1.2L12 20.5 10.2 15A2 2 0 0 0 9 13.8L3.5 12 9 10.2A2 2 0 0 0 10.2 9Z"/></symbol>
+  <symbol id="quote" viewBox="0 0 24 24"><path d="M9.5 7H6a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v1.5A2.5 2.5 0 0 1 6.5 17"/><path d="M19.5 7H16a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h3v1.5a2.5 2.5 0 0 1-2.5 2.5"/></symbol>
+  <symbol id="flask" viewBox="0 0 24 24"><path d="M9 3h6"/><path d="M10 3v6.2L4.9 18a2 2 0 0 0 1.7 3h10.8a2 2 0 0 0 1.7-3L14 9.2V3"/><path d="M7.3 15h9.4"/></symbol>
+  <symbol id="coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.6.8-2.6 2s1.1 1.6 2.6 2 2.6.9 2.6 2.1-1.1 2-2.6 2c-1.2 0-2.1-.5-2.6-1.3M12 6.5V8M12 16v1.5"/></symbol>
+  <symbol id="list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></symbol>
+  <symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i><i class="hl"></i><i></i><b>1</b></span>
+      <div class="brand-text">
+        <h1 class="brand-name">RAG Knowledge Assistant</h1>
+        <div class="brand-sub">Reference build on a fictional company's documents</div>
+      </div>
+    </div>
+    <div class="top-actions">
+      <button type="button" class="btn btn-ghost" id="replay" hidden><svg class="i" aria-hidden="true"><use href="#refresh"/></svg><span>Replay<span class="wide-only"> the demo</span></span></button>
+      <a class="btn btn-ghost" id="repo" href="https://github.com/Ahmedsukaik/rag-knowledge-assistant" target="_blank" rel="noopener"><svg class="i" aria-hidden="true"><use href="#code"/></svg><span>Source<span class="wide-only"> code</span></span></a>
+    </div>
+  </header>
+
+  <section class="story" id="story" aria-labelledby="story-title" tabindex="-1">
+    <div class="story-main" id="story-main"></div>
+    <div class="story-actions" id="story-actions"></div>
+    <div class="story-art" id="story-art"></div>
+  </section>
+
+  <div class="switch-row phone-only" id="switch-row">
+    <div class="seg" role="group" aria-label="View">
+      <button type="button" data-pane="answer" aria-pressed="true">Answer</button>
+      <button type="button" data-pane="source" aria-pressed="false">Source</button>
+    </div>
+  </div>
+
+  <main class="workspace" id="workspace">
+    <section class="ask-pane" id="ask-pane" aria-label="Questions and answers">
+      <div class="asker" id="asker"></div>
+      <form class="composer" id="composer" hidden>
+        <label for="input" class="sr-only">Your question</label>
+        <div class="composer-box">
+          <textarea id="input" rows="1" maxlength="1000" placeholder="Ask about leave, expenses, IT, the office..." autocomplete="off"></textarea>
+          <button type="submit" class="btn btn-primary" id="send"><svg class="i" aria-hidden="true"><use href="#search"/></svg><span>Ask</span></button>
+        </div>
+        <div class="composer-meta" id="composer-meta"></div>
+      </form>
+      <div class="chips" id="chips" role="group" aria-label="Suggested questions" hidden></div>
+      <div class="answers" id="answers"></div>
+    </section>
+
+    <section class="desk-pane" id="desk" aria-label="Source document" tabindex="-1"></section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<div class="sr-only" id="announce" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>
