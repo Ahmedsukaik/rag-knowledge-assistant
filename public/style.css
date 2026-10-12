@@ -321,7 +321,8 @@ body[data-step="0"] .workspace { opacity: .5; filter: saturate(.7); pointer-even
 .figure small { display: block; margin-top: 2px; font-size: 13px; color: var(--paper-muted); }
 .eval { width: 100%; border-collapse: collapse; font-size: 14px; }
 .eval th, .eval td { padding: 8px 8px; text-align: left; border-bottom: 1px solid var(--paper-rule); vertical-align: top; }
-.eval thead th:first-child { width: 34%; }
+.eval { table-layout: fixed; }
+.eval thead th:first-child { width: 32%; }
 .eval thead th { font: 500 11px/1.35 var(--font-mono); letter-spacing: .04em; text-transform: uppercase; color: var(--paper-muted); }
 .eval td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .eval th[scope="row"] { font-weight: 600; }

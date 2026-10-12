@@ -10,6 +10,9 @@ What it measures:
   without the .pyc files pip compiles. Vercel's own installer may or may not compile them.
 - Project files: every file git would give Vercel (tracked, plus new files not ignored), minus
   vercel.json's excludeFiles for api/index.py.
+- Whether Vercel applies excludeFiles to the installed packages as well is not documented
+  clearly; the report gives both figures. vercel.json also lists **/__pycache__/**,
+  **/tests/** and onnxruntime's model-conversion tools, which the demo never imports.
 - Plan B: the same, without demo/model. vercel.json cannot read environment variables, so
   dropping the model from the bundle as well means adding demo/model/** to excludeFiles; with
   KB_DEMO_SEARCH=keywords alone the server never loads it, but it still ships.
@@ -84,6 +87,9 @@ def measure() -> dict:
         target = Path(tmp) / "site"
         install_dependencies(target)
         deps, deps_no_pyc = folder_size(target), folder_size(target, pyc=False)
+        patterns = [glob_regex(p) for p in exclude]
+        deps_excluded = sum(p.stat().st_size for p in target.rglob("*") if p.is_file()
+                            and not any(x.fullmatch(p.relative_to(target).as_posix()) for x in patterns))
         packages = {}
         for entry in target.iterdir():
             if entry.is_dir() and not entry.name.endswith((".dist-info", ".data")) and entry.name != "bin":
@@ -101,6 +107,9 @@ def measure() -> dict:
         "project_files_mb": round(project / MB, 1), "model_mb": round(model_size / MB, 1),
         "plan_a_mb": round(plan_a / MB, 1), "plan_a_without_pyc_mb": round((plan_a - deps + deps_no_pyc) / MB, 1),
         "plan_b_mb": round(plan_b / MB, 1), "plan_b_without_onnxruntime_mb": round((plan_b - onnx) / MB, 1),
+        "dependencies_after_exclude_mb": round(deps_excluded / MB, 1),
+        "plan_a_if_exclude_applies_to_packages_mb": round((deps_excluded + project) / MB, 1),
+        "plan_b_if_exclude_applies_to_packages_mb": round((deps_excluded + project - model_size) / MB, 1),
         "largest_packages_mb": {k: round(v / MB, 1) for k, v in sorted(packages.items(), key=lambda kv: -kv[1])[:8]},
         "project_files": len(files),
         "largest_project_files_mb": {f: round(s / MB, 2) for f, s in sorted(sizes.items(), key=lambda kv: -kv[1])[:5]},
@@ -114,11 +123,14 @@ def report(r: dict) -> str:
         f"{'':44}{'plan A':>10}{'plan B':>10}",
         f"{'dependencies (api/requirements.txt)':44}{r['dependencies_mb']:>8} MB{r['dependencies_mb']:>8} MB",
         f"{'  without the .pyc files pip compiles':44}{r['dependencies_without_pyc_mb']:>8} MB",
-        f"{'  of which onnxruntime':44}{r['onnxruntime_and_its_dependencies_mb']:>8} MB",
+        f"{'  of which onnxruntime (with protobuf)':44}{r['onnxruntime_and_its_dependencies_mb']:>8} MB",
+        f"{'  after excludeFiles, if Vercel applies it':44}{r['dependencies_after_exclude_mb']:>8} MB",
         f"{'project files (after excludeFiles)':44}{r['project_files_mb']:>8} MB{round(r['project_files_mb'] - r['model_mb'], 1):>8} MB",
         f"{'  of which the model (demo/model)':44}{r['model_mb']:>8} MB{'-':>10}",
         f"{'total':44}{r['plan_a_mb']:>8} MB{r['plan_b_mb']:>8} MB",
         f"{'  without .pyc files':44}{r['plan_a_without_pyc_mb']:>8} MB",
+        f"{'  if excludeFiles applies to packages too':44}{r['plan_a_if_exclude_applies_to_packages_mb']:>8} MB"
+        f"{r['plan_b_if_exclude_applies_to_packages_mb']:>8} MB",
         f"{'plan B with onnxruntime removed as well':44}{'':>10}{r['plan_b_without_onnxruntime_mb']:>8} MB",
         f"{'limit':44}{r['limit_mb']:>8} MB{r['limit_mb']:>8} MB",
         "",

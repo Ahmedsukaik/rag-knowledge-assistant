@@ -15,7 +15,7 @@
     "api/index.py": {
       "maxDuration": 60,
       "includeFiles": "{kb/**,demo/**}",
-      "excludeFiles": "{tests/**,docs/**,eval/**,samples/**,scripts/**,models/**,public/**,kb/web/**,demo.py,.venv/**,**/__pycache__/**,demo/model/NOTICE.md}"
+      "excludeFiles": "{tests/**,docs/**,eval/**,samples/**,scripts/**,models/**,public/**,kb/web/**,demo.py,.venv/**,demo/model/NOTICE.md,**/__pycache__/**,**/tests/**,**/onnxruntime/transformers/**,**/onnxruntime/quantization/**,**/onnxruntime/tools/**}"
     }
   },
   "headers": [

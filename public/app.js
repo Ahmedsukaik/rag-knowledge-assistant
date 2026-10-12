@@ -113,9 +113,12 @@
     renderAnswers(); renderDoc();
     if (!opts.quiet) {
       const mark = $("#desk mark.hl.active");
+      const desk = $("#desk");
       if (mark && isPhone()) reveal(mark, "center");
-      else if (mark) mark.scrollIntoView({ block: "center" });
-      else if (isPhone()) window.scrollTo(0, 0);
+      else if (mark) {  // the top of the page when the marked sentence fits there, else the sentence in the middle
+        desk.scrollTop = 0;
+        if (mark.getBoundingClientRect().bottom > desk.getBoundingClientRect().bottom - 48) mark.scrollIntoView({ block: "center" });
+      } else if (isPhone()) window.scrollTo(0, 0);
     }
   }
   function squashed(text) {
@@ -263,7 +266,7 @@
     if (a.status === "not_found") {
       body = `<div class="refusal"><span class="stamp">Not in your documents</span><p>${esc(a.answer)}</p></div>`;
     } else if (a.status === "flagged") {
-      const draft = a.draft ? `<blockquote class="draft"><del>${esc(a.draft)}</del></blockquote>` : "";
+      const draft = a.draft ? `<blockquote class="draft"><del>${esc(a.draft.replace(/ ?\[\d+\]/g, ""))}</del></blockquote>` : "";
       body = `<div class="held" role="note"><div class="held-head">${icon("shield")}Held: the AI's draft failed the source check</div>
         <p class="held-sub">Nobody saw this draft. It is shown here only because this is a demo; in your version it goes to the audit log for the admin.</p>${draft}
         <ul class="problems">${(a.problems || []).map((x) => `<li>${icon("alert")}<span>${esc(x)}</span></li>`).join("")}</ul></div>
