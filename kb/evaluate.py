@@ -154,6 +154,12 @@ def run_eval(questions: str | Path, docs: str | Path, k: int = 3, answerer: Answ
     if report_ingest.skipped:
         raise ValueError(f"some documents could not be ingested: {report_ingest.skipped}")
     kb = KnowledgeBase(store, chosen, answerer=answerer, **(options or {}))
+    return evaluate_items(kb, items, k, retriever)
+
+
+def evaluate_items(kb: KnowledgeBase, items: list[dict[str, Any]], k: int = 3, retriever: str = "hybrid") -> Report:
+    """Ask every question through `kb`, with the role it names, and measure the results."""
+    store = kb.store
     roles = parse_roles(DEFAULT_ROLES)
     everything = frozenset(store.collections())
     report = Report(k, kb.answerer.mode, retriever)

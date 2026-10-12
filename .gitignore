@@ -10,3 +10,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 models/
+
+# The web demo ships its prebuilt index (scripts/build_demo_index.py).
+!demo/kb.db
+.vercel/

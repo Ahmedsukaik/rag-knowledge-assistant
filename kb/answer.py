@@ -38,6 +38,7 @@ from typing import Any, Protocol
 from .config import DEFAULT_EFFORT, DEFAULT_MODEL
 from .embeddings import Embedder
 from .retrieval import Hit, query_terms
+from .store import Chunk
 from .text import looks_like_instructions, one_line, split_sentences, squash, tokenize
 
 log = logging.getLogger("kb.answer")
@@ -99,6 +100,12 @@ class Answerer(Protocol):
 
 
 # ---------------------------------------------------------------------------- extractive
+def sentence_text(chunk: Chunk, sentence: str) -> str:
+    """What is embedded for one candidate sentence: the sentence with its document title and
+    section, so a short line such as "E31: no Wi-Fi connection." keeps its context."""
+    return f"{chunk.title}, {chunk.section or ''}: {sentence}"
+
+
 class ExtractiveAnswerer:
     """Quotes the best matching sentences. No language model, nothing invented.
 
@@ -156,8 +163,7 @@ class ExtractiveAnswerer:
 
         if self.embedder is not None:
             chunks = [hits[c[0]].chunk for c in candidates]
-            vectors = self.embedder.embed([question] + [f"{ch.title}, {ch.section or ''}: {c[2]}"
-                                                        for ch, c in zip(chunks, candidates, strict=True)])
+            vectors = self.embedder.embed([question] + [sentence_text(ch, c[2]) for ch, c in zip(chunks, candidates, strict=True)])
             similarity = vectors[1:] @ vectors[0]
             scores = {id(c): float(similarity[i]) + self.word_bonus * scores[id(c)] for i, c in enumerate(candidates)}
             ranked = sorted(candidates, key=lambda c: (-scores[id(c)], c[0], c[1]))

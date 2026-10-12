@@ -2,3 +2,6 @@
 *.pdf binary
 *.png binary
 *.gif binary
+*.onnx binary
+*.npz binary
+*.db binary

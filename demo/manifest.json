@@ -1,0 +1,155 @@
+{
+  "built": "2026-10-12",
+  "built_by": "scripts/build_demo_index.py",
+  "model": {
+    "name": "BAAI/bge-small-en-v1.5",
+    "key": "BAAI/bge-small-en-v1.5@51f1bd0addd6",
+    "repository": "Qdrant/bge-small-en-v1.5-onnx-Q",
+    "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+    "onnx_sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+    "licence": "MIT",
+    "files": {
+      "model_optimized.onnx": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+      "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "tokenizer_config.json": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+      "special_tokens_map.json": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+      "config.json": "13582bcf2effc85b7bf3d3f5532e686bc1c9ce86bb009d10f0ec33cbe92299dd"
+    }
+  },
+  "documents": [
+    {
+      "file": "finance/quarter-end-checklist.pdf",
+      "sha256": "15a4ce45c658330b56bb038a26abd1a12a425efc6a538febc0f27067e0f0c5e2",
+      "doc_id": "finance/quarter-end-checklist",
+      "collection": "finance",
+      "title": "Quarter-End Close Checklist (Finance only)",
+      "content_hash": "43b11665092b189f9467fddfd8b0a4da8012c953b1f2b451172fe0d56e859a35",
+      "passages": 5
+    },
+    {
+      "file": "finance/supplier-payments.md",
+      "sha256": "3279b47cf624fee06017f816c3056cbe45a02e76f05a6ac1518e270589a896eb",
+      "doc_id": "finance/supplier-payments",
+      "collection": "finance",
+      "title": "Supplier Payment Runs (Finance only)",
+      "content_hash": "7bde24c21131f4b5402936acd2547a6ac6c7f3ac873c0da84a14b10e4c280a27",
+      "passages": 5
+    },
+    {
+      "file": "general/expense-policy.md",
+      "sha256": "46c09a19e68e668f981ba1382c7bff6f8aeb47d8a4a2477ce3b54030d03e3437",
+      "doc_id": "general/expense-policy",
+      "collection": "general",
+      "title": "Expense Policy",
+      "content_hash": "756d86d84ebd7fd864362f747dea510323ddd8b7d17ee2e9e296ef992f74935e",
+      "passages": 7
+    },
+    {
+      "file": "general/it-security-policy.md",
+      "sha256": "243ead6552ef73d4e0bc96f3ff125f06d3a16c2d9748c3a885bcd89efff86686",
+      "doc_id": "general/it-security-policy",
+      "collection": "general",
+      "title": "IT Security Policy",
+      "content_hash": "5d44a8eab1451fd536ae8ad1cc17833c5f654d9fdddbe02d04ff00ad203520ad",
+      "passages": 7
+    },
+    {
+      "file": "general/leave-policy.md",
+      "sha256": "4d678cb34b8204752ede3309d692bd9a8f84115b451316aee3fd36d9281cfe52",
+      "doc_id": "general/leave-policy",
+      "collection": "general",
+      "title": "Leave Policy",
+      "content_hash": "2e25ce75b881655132d39ee8a10fe487658f5273e7b7cf50995705a1baa7adf8",
+      "passages": 7
+    },
+    {
+      "file": "general/office-faq.txt",
+      "sha256": "0c75c4b494c91f1e79535f4399949bcb60b18953c5def614dd3d0b4a41f286db",
+      "doc_id": "general/office-faq",
+      "collection": "general",
+      "title": "Office FAQ",
+      "content_hash": "d6cbca960bb23e854bae134cb109cf922230cc9340ecfa0f6847cd92de1a0db9",
+      "passages": 2
+    },
+    {
+      "file": "general/onboarding-guide.md",
+      "sha256": "ec082ef59d68e50d424681820018399c338927505f38d9c9b413326998e38efc",
+      "doc_id": "general/onboarding-guide",
+      "collection": "general",
+      "title": "Onboarding Guide for New Starters",
+      "content_hash": "97e102033e4cbb972820a56823da99aa3d993cb270c1e835f46b4533f37edbf8",
+      "passages": 6
+    },
+    {
+      "file": "general/pt-200-product-manual.pdf",
+      "sha256": "c27e0f4df0eba7f70759a389de621e7a9e6125887fa4e531150e50d4a7d91a40",
+      "doc_id": "general/pt-200-product-manual",
+      "collection": "general",
+      "title": "PT-200 Pallet Tracker: User Manual",
+      "content_hash": "16cd2bbcef7a72408b8ced11224a03a07b792a767a0f93f881c97de223e1e840",
+      "passages": 6
+    },
+    {
+      "file": "hr/salary-bands.md",
+      "sha256": "3204d1a67c2b12f69c68412eed102542f8b69b3b908405dfd49b396c57fd2f2b",
+      "doc_id": "hr/salary-bands",
+      "collection": "hr",
+      "title": "Salary Bands 2027 (HR only)",
+      "content_hash": "417af1f4c819ca4698b2f87862f87a08a4ff8ea50485a479b234f56b0e85aa78",
+      "passages": 5
+    }
+  ],
+  "passages": 50,
+  "texts": 265,
+  "files": {
+    "kb.db": "8ba748b5668d46fde663d16a10c770329ed2811a0015d6326578bb8d94a6231b",
+    "vectors.npz": "4c9e6b8ecb8b440db00a00926ad843a48056ae7592eaa1ca61c1cf71f0351333"
+  },
+  "eval": {
+    "main": {
+      "questions": 64,
+      "answerable": 37,
+      "hit_at_1": 37,
+      "hit_at_k": 37,
+      "answered": 36,
+      "cites_expected": 36,
+      "quote_checked": 36,
+      "quotes_expected": 36,
+      "out_of_scope": 17,
+      "out_of_scope_refused": 16,
+      "restricted": 10,
+      "restricted_refused": 10,
+      "restricted_text_found": 0
+    },
+    "heldout": {
+      "questions": 31,
+      "answerable": 21,
+      "hit_at_1": 20,
+      "hit_at_k": 21,
+      "answered": 14,
+      "cites_expected": 14,
+      "quote_checked": 14,
+      "quotes_expected": 14,
+      "out_of_scope": 6,
+      "out_of_scope_refused": 2,
+      "restricted": 4,
+      "restricted_refused": 4,
+      "restricted_text_found": 0
+    },
+    "heldout_v2": {
+      "questions": 30,
+      "answerable": 16,
+      "hit_at_1": 15,
+      "hit_at_k": 16,
+      "answered": 10,
+      "cites_expected": 9,
+      "quote_checked": 10,
+      "quotes_expected": 8,
+      "out_of_scope": 8,
+      "out_of_scope_refused": 7,
+      "restricted": 6,
+      "restricted_refused": 5,
+      "restricted_text_found": 0
+    }
+  }
+}
